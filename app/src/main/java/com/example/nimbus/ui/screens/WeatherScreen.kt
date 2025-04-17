@@ -1,5 +1,11 @@
 package com.example.nimbus.ui.screens
 
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -7,6 +13,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.nimbus.data.model.WeatherResponse
 import com.example.nimbus.data.repository.WeatherRepository
@@ -15,6 +23,7 @@ import com.example.nimbus.ui.components.WeatherContent
 import com.example.nimbus.ui.components.WeatherErrorScreen
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun WeatherScreen() {
     val context = LocalContext.current
@@ -22,16 +31,43 @@ fun WeatherScreen() {
     val coroutineScope = rememberCoroutineScope()
     
     var weatherState by remember { mutableStateOf<WeatherScreenState>(WeatherScreenState.Loading) }
+    var isRefreshing by remember { mutableStateOf(false) }
     
     LaunchedEffect(key1 = true) {
         fetchWeatherData(repository, weatherState) { newState ->
             weatherState = newState
         }
     }
+
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                fetchWeatherData(repository, weatherState) { newState ->
+                    weatherState = newState
+                    isRefreshing = false
+                }
+            }
+        }
+    )
     
     when (val state = weatherState) {
         is WeatherScreenState.Loading -> LoadingScreen()
-        is WeatherScreenState.Success -> WeatherContent(weatherData = state.data)
+        is WeatherScreenState.Success -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pullRefresh(pullRefreshState)
+            ) {
+                WeatherContent(weatherData = state.data)
+                PullRefreshIndicator(
+                    refreshing = isRefreshing,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+        }
         is WeatherScreenState.Error -> WeatherErrorScreen(
             message = state.message,
             onRetry = {

@@ -69,6 +69,9 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     
+    // Pull-to-refresh
+    implementation("androidx.compose.material:material:1.7.0")
+    
     // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.moshi)
