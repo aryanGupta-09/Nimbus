@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.retrofit.moshi)
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.0") // Kotlin support for Moshi
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     

@@ -42,7 +42,10 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun WeatherContent(weatherData: WeatherResponse) {
+fun WeatherContent(
+    weatherData: WeatherResponse,
+    locationName: String? = null
+) {
     val scrollState = rememberScrollState()
     
     Box(
@@ -65,7 +68,7 @@ fun WeatherContent(weatherData: WeatherResponse) {
         ) {
             // Location and current weather header
             CurrentWeatherHeader(
-                locationName = weatherData.location.name,
+                locationName = locationName ?: weatherData.location.name,
                 country = weatherData.location.country,
                 current = weatherData.current
             )

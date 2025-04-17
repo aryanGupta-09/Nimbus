@@ -11,14 +11,23 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.nimbus.ui.screens.LocationsScreen
 import com.example.nimbus.ui.screens.WeatherScreen
 import com.example.nimbus.ui.theme.NimbusTheme
-import com.example.nimbus.util.Constants
 
 class MainActivity : ComponentActivity() {
+    
+    // Define screen routes
+    sealed class Screen {
+        data object Weather : Screen()
+        data object Locations : Screen()
+    }
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -63,7 +72,25 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    WeatherScreen()
+                    // Setup navigation
+                    var currentScreen by remember { mutableStateOf<Screen>(Screen.Weather) }
+                    
+                    when (currentScreen) {
+                        is Screen.Weather -> {
+                            WeatherScreen(
+                                onNavigateToLocations = {
+                                    currentScreen = Screen.Locations
+                                }
+                            )
+                        }
+                        is Screen.Locations -> {
+                            LocationsScreen(
+                                onNavigateBack = {
+                                    currentScreen = Screen.Weather
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
