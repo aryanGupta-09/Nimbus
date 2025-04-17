@@ -4,6 +4,18 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+import java.io.FileInputStream
+import java.util.Properties
+
+// Read API keys from properties file
+val apikeyPropertiesFile = rootProject.file("apikey.properties")
+val apikeyProperties = Properties()
+if (apikeyPropertiesFile.exists()) {
+    apikeyProperties.load(FileInputStream(apikeyPropertiesFile))
+} else {
+    apikeyProperties.setProperty("WEATHER_API_KEY", "")
+}
+
 android {
     namespace = "com.example.nimbus"
     compileSdk = 35
@@ -25,6 +37,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("String", "WEATHER_API_KEY", apikeyProperties["WEATHER_API_KEY"]?.toString()?.let { "\"$it\"" } ?: "\"\"")
+        }
+        debug {
+            buildConfigField("String", "WEATHER_API_KEY", apikeyProperties["WEATHER_API_KEY"]?.toString()?.let { "\"$it\"" } ?: "\"\"")
         }
     }
     compileOptions {
@@ -36,19 +52,44 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
-
+    // Core Android dependencies
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    
+    // Compose dependencies
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    
+    // Networking
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.moshi)
+    implementation(libs.moshi)
+    implementation(libs.moshi.kotlin)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+    
+    // Image loading
+    implementation(libs.coil)
+    
+    // Location
+    implementation(libs.play.services.location)
+    
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.android)
+    
+    // DataStore for storing API keys
+    implementation(libs.datastore.preferences)
+    
+    // Testing dependencies
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
