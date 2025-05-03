@@ -202,12 +202,13 @@ class WeatherRepository(private val context: Context) {
         )
         
         val dailyResponses = mutableListOf<WeatherResponse>()
+        val processedDates = mutableSetOf<String>() // Track processed dates to avoid duplicates
         
         // Extract each day into separate WeatherResponse objects
         if (response.forecast.forecastday.isNotEmpty()) {
             for (forecastDay in response.forecast.forecastday) {
-                // Only include the days that were missing
-                if (forecastDay.date in missingDates) {
+                // Only include the days that were missing and haven't been processed yet
+                if (forecastDay.date in missingDates && !processedDates.contains(forecastDay.date)) {
                     val singleDayForecast = Forecast(listOf(forecastDay))
                     val singleDayResponse = WeatherResponse(
                         location = response.location,
@@ -216,6 +217,7 @@ class WeatherRepository(private val context: Context) {
                     )
                     
                     dailyResponses.add(singleDayResponse)
+                    processedDates.add(forecastDay.date) // Mark this date as processed
                     
                     // Save to the database
                     historicalWeatherDao.insertHistoricalWeather(
@@ -240,8 +242,12 @@ class WeatherRepository(private val context: Context) {
         missingDates: List<String>
     ): List<WeatherResponse> {
         val historicalData = mutableListOf<WeatherResponse>()
+        val processedDates = mutableSetOf<String>() // Track processed dates to avoid duplicates
         
         for (date in missingDates) {
+            // Skip dates we've already processed
+            if (date in processedDates) continue
+            
             try {
                 val response = weatherApiService.getHistoricalWeather(
                     query = query,
@@ -249,6 +255,7 @@ class WeatherRepository(private val context: Context) {
                 )
                 
                 historicalData.add(response)
+                processedDates.add(date) // Mark this date as processed
                 
                 // Save to the database
                 historicalWeatherDao.insertHistoricalWeather(

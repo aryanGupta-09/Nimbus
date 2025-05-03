@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 /**
  * Room database for storing weather data
  */
-@Database(entities = [HistoricalWeatherEntity::class], version = 2, exportSchema = false)
+@Database(entities = [HistoricalWeatherEntity::class], version = 3, exportSchema = false)
 @TypeConverters(WeatherResponseConverter::class)
 abstract class WeatherDatabase : RoomDatabase() {
     
