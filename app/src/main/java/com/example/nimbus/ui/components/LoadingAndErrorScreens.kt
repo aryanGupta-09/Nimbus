@@ -39,18 +39,30 @@ fun WeatherErrorScreen(
     message: String,
     onRetry: () -> Unit
 ) {
+    // Check if this is a network connectivity error
+    val isOfflineError = message.contains("No internet") || 
+                         message.contains("Unable to resolve host") ||
+                         message.contains("Failed to connect")
+    
+    val title = if (isOfflineError) "No Internet Connection" else "Oops! Something went wrong"
+    val displayMessage = if (isOfflineError) {
+        "You're currently offline. Connect to the internet to fetch new weather data."
+    } else {
+        message
+    }
+    
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Oops! Something went wrong",
+            text = title,
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center
         )
         Text(
-            text = message,
+            text = displayMessage,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(16.dp)

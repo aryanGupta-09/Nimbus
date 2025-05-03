@@ -11,6 +11,9 @@ import com.example.nimbus.data.location.LocationManager
 import com.example.nimbus.data.model.Forecast
 import com.example.nimbus.data.model.WeatherResponse
 import com.example.nimbus.data.model.local.SavedLocation
+import com.example.nimbus.data.model.local.CachedWeatherData
+import com.example.nimbus.data.model.local.OfflineDataInfo
+import com.example.nimbus.util.NetworkUtils
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -29,6 +32,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import java.io.IOException
 
 class WeatherRepository(private val context: Context) {
     private val weatherApiService = NetworkModule.weatherApiService
@@ -50,6 +54,13 @@ class WeatherRepository(private val context: Context) {
     // Historical weather data
     private val _historicalWeatherData = MutableStateFlow<List<WeatherResponse>>(emptyList())
     val historicalWeatherData: StateFlow<List<WeatherResponse>> = _historicalWeatherData
+    
+    // Session-based cache for weather data
+    private val sessionCache = mutableMapOf<String, CachedWeatherData>()
+    
+    // Information about offline data
+    private val _offlineDataInfo = MutableStateFlow<OfflineDataInfo?>(null)
+    val offlineDataInfo: StateFlow<OfflineDataInfo?> = _offlineDataInfo
     
     // Add a new location
     suspend fun addLocation(location: SavedLocation) {
@@ -87,18 +98,71 @@ class WeatherRepository(private val context: Context) {
     }
     
     suspend fun getWeatherForecast(savedLocation: SavedLocation? = null): Result<WeatherResponse> {
-        return try {
+        try {
             val query = if (savedLocation?.isCurrent == true) {
                 getCurrentLocationString()
             } else {
                 savedLocation?.query ?: getCurrentLocationString()
             }
             
+            // Reset offline data info when attempting to fetch data
+            _offlineDataInfo.value = null
+            
+            // Check network availability
+            if (!NetworkUtils.isNetworkAvailable(context)) {
+                Log.d("WeatherRepository", "Network unavailable, using cached data")
+                // Return cached data if available
+                val cachedData = sessionCache[query]
+                if (cachedData != null) {
+                    _offlineDataInfo.value = OfflineDataInfo(
+                        locationName = cachedData.weatherData.location.name,
+                        timestamp = cachedData.timestamp
+                    )
+                    return Result.success(cachedData.weatherData)
+                } else {
+                    return Result.failure(IOException("No internet connection and no cached data available"))
+                }
+            }
+            
+            // If network is available, fetch fresh data
             val response = weatherApiService.getWeatherForecast(query = query)
-            Result.success(response)
+            
+            // Cache the response
+            sessionCache[query] = CachedWeatherData(
+                locationQuery = query,
+                weatherData = response,
+                timestamp = System.currentTimeMillis(),
+                fromCache = false
+            )
+            
+            return Result.success(response)
         } catch (e: Exception) {
             Log.e("WeatherRepository", "Error fetching weather data", e)
-            Result.failure(e)
+            
+            // If it's a network error, try to use cached data
+            if (e is IOException) {
+                Log.d("WeatherRepository", "Network error, attempting to use cached data")
+                val query = if (savedLocation?.isCurrent == true) {
+                    try {
+                        getCurrentLocationString()
+                    } catch (ex: Exception) {
+                        savedLocation.id
+                    }
+                } else {
+                    savedLocation?.query ?: "current_location"
+                }
+                
+                val cachedData = sessionCache[query]
+                if (cachedData != null) {
+                    _offlineDataInfo.value = OfflineDataInfo(
+                        locationName = cachedData.weatherData.location.name,
+                        timestamp = cachedData.timestamp
+                    )
+                    return Result.success(cachedData.weatherData)
+                }
+            }
+            
+            return Result.failure(e)
         }
     }
     

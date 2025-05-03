@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import com.example.nimbus.data.model.local.OfflineDataInfo
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 
 class WeatherViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = WeatherRepository(application)
@@ -18,6 +21,13 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     
     private val _historicalWeatherState = MutableStateFlow<HistoricalWeatherState>(HistoricalWeatherState.Loading)
     val historicalWeatherState: StateFlow<HistoricalWeatherState> = _historicalWeatherState
+
+    // Expose offline data information
+    val offlineDataInfo = repository.offlineDataInfo.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
 
     init {
         viewModelScope.launch {

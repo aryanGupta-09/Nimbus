@@ -20,12 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.remember
 import com.example.nimbus.data.model.WeatherResponse
 import com.example.nimbus.data.repository.WeatherRepository
 import com.example.nimbus.ui.components.LoadingScreen
 import com.example.nimbus.ui.components.WeatherContent
 import com.example.nimbus.ui.components.WeatherErrorScreen
+import com.example.nimbus.ui.components.OfflineBanner
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -39,6 +41,8 @@ fun WeatherScreen(
     // Observe UI state from ViewModel
     val weatherState by viewModel.weatherState.collectAsState()
     val historicalWeatherState by viewModel.historicalWeatherState.collectAsState()
+    // Observe offline data info
+    val offlineInfo by viewModel.offlineDataInfo.collectAsState()
     
     val pullRefreshState = rememberPullRefreshState(
         refreshing = weatherState is WeatherScreenState.Loading,
@@ -80,33 +84,51 @@ fun WeatherScreen(
             }
         }
     ) { paddingValues ->
-        when (val state = weatherState) {
-            is WeatherScreenState.Loading -> LoadingScreen()
-            is WeatherScreenState.Success -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .pullRefresh(pullRefreshState)
-                ) {
-                    WeatherContent(
-                        weatherData = state.data,
-                        locationName = selectedLocation?.name,
-                        fullLocationDisplay = fullLocationDisplay,
-                        historicalWeatherState = historicalWeatherState,
-                        onRetryHistorical = { viewModel.fetchHistoricalWeather() }
-                    )
-                    PullRefreshIndicator(
-                        refreshing = weatherState is WeatherScreenState.Loading,
-                        state = pullRefreshState,
-                        modifier = Modifier.align(Alignment.TopCenter)
-                    )
-                }
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Show offline banner when displaying cached data
+            if (offlineInfo != null) {
+                OfflineBanner(
+                    timestamp = offlineInfo!!.timestamp,
+                    modifier = Modifier.padding(top = paddingValues.calculateTopPadding())
+                )
             }
-            is WeatherScreenState.Error -> WeatherErrorScreen(
-                message = state.message,
-                onRetry = { viewModel.fetchWeather() }
-            )
+            
+            when (val state = weatherState) {
+                is WeatherScreenState.Loading -> LoadingScreen()
+                is WeatherScreenState.Success -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = if (offlineInfo != null) {
+                                    paddingValues.calculateTopPadding() + 40.dp // Add extra space for the banner
+                                } else {
+                                    paddingValues.calculateTopPadding()
+                                }
+                            )
+                            .pullRefresh(pullRefreshState)
+                    ) {
+                        WeatherContent(
+                            weatherData = state.data,
+                            locationName = selectedLocation?.name,
+                            fullLocationDisplay = fullLocationDisplay,
+                            historicalWeatherState = historicalWeatherState,
+                            onRetryHistorical = { viewModel.fetchHistoricalWeather() }
+                        )
+                        PullRefreshIndicator(
+                            refreshing = weatherState is WeatherScreenState.Loading,
+                            state = pullRefreshState,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+                    }
+                }
+                is WeatherScreenState.Error -> WeatherErrorScreen(
+                    message = state.message,
+                    onRetry = { viewModel.fetchWeather() }
+                )
+            }
         }
     }
 }
