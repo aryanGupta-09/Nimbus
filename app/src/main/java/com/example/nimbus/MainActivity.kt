@@ -17,9 +17,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.example.nimbus.ui.screens.LocationsScreen
 import com.example.nimbus.ui.screens.WeatherScreen
 import com.example.nimbus.ui.theme.NimbusTheme
+import kotlinx.coroutines.launch
+import com.example.nimbus.data.model.local.SavedLocation
+import com.example.nimbus.data.repository.WeatherRepository
 
 class MainActivity : ComponentActivity() {
     
@@ -66,6 +70,12 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun setupWeatherApp() {
+        // Set current location as the selected location whenever app starts
+        val repository = WeatherRepository(this)
+        lifecycleScope.launch {
+            repository.setSelectedLocation(SavedLocation.currentLocation().id)
+        }
+        
         setContent {
             NimbusTheme {
                 Surface(
