@@ -6,7 +6,7 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class WeatherResponse(
     val location: Location,
-    val current: Current,
+    val current: Current? = null,
     val forecast: Forecast
 )
 
@@ -115,8 +115,8 @@ data class Astro(
     val moonset: String,
     @Json(name = "moon_phase") val moonPhase: String,
     @Json(name = "moon_illumination") val moonIllumination: String,
-    @Json(name = "is_moon_up") val isMoonUp: Int,
-    @Json(name = "is_sun_up") val isSunUp: Int
+    @Json(name = "is_moon_up") val isMoonUp: Int? = null,
+    @Json(name = "is_sun_up") val isSunUp: Int? = null
 )
 
 @JsonClass(generateAdapter = true)

@@ -38,6 +38,7 @@ import com.example.nimbus.data.model.Astro
 import com.example.nimbus.data.model.Current
 import com.example.nimbus.data.model.ForecastDay
 import com.example.nimbus.data.model.WeatherResponse
+import com.example.nimbus.ui.screens.HistoricalWeatherState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -45,7 +46,9 @@ import java.time.format.DateTimeFormatter
 fun WeatherContent(
     weatherData: WeatherResponse,
     locationName: String? = null,
-    fullLocationDisplay: String? = null
+    fullLocationDisplay: String? = null,
+    historicalWeatherState: HistoricalWeatherState = HistoricalWeatherState.Loading,
+    onRetryHistorical: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     
@@ -68,30 +71,59 @@ fun WeatherContent(
                 .padding(16.dp)
         ) {
             // Location and current weather header
-            if (fullLocationDisplay != null) {
-                // Use the full location display if provided
-                CurrentWeatherHeaderWithFullLocation(
-                    fullLocationDisplay = fullLocationDisplay,
-                    current = weatherData.current
-                )
-            } else {
-                // Otherwise use the old method
-                CurrentWeatherHeader(
-                    locationName = locationName ?: weatherData.location.name,
-                    country = weatherData.location.country,
-                    current = weatherData.current
-                )
+            if (weatherData.current != null) {
+                if (fullLocationDisplay != null) {
+                    // Use the full location display if provided
+                    CurrentWeatherHeaderWithFullLocation(
+                        fullLocationDisplay = fullLocationDisplay,
+                        current = weatherData.current
+                    )
+                } else {
+                    // Otherwise use the old method
+                    CurrentWeatherHeader(
+                        locationName = locationName ?: weatherData.location.name,
+                        country = weatherData.location.country,
+                        current = weatherData.current
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Weather details cards
+                WeatherDetailsSection(weatherData)
+                
+                Spacer(modifier = Modifier.height(24.dp))
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Weather details cards
-            WeatherDetailsSection(weatherData)
-            
-            Spacer(modifier = Modifier.height(24.dp))
             
             // Forecast for the next days
             ForecastSection(weatherData.forecast.forecastday)
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Historical weather section
+            when (historicalWeatherState) {
+                is HistoricalWeatherState.Loading -> {
+                    HistoricalWeatherSection(
+                        historicalData = emptyList(),
+                        isLoading = true,
+                        onRetry = onRetryHistorical
+                    )
+                }
+                is HistoricalWeatherState.Success -> {
+                    HistoricalWeatherSection(
+                        historicalData = historicalWeatherState.data,
+                        isLoading = false,
+                        onRetry = onRetryHistorical
+                    )
+                }
+                is HistoricalWeatherState.Error -> {
+                    HistoricalWeatherSection(
+                        historicalData = emptyList(),
+                        isLoading = false,
+                        onRetry = onRetryHistorical
+                    )
+                }
+            }
         }
     }
 }
@@ -231,15 +263,18 @@ fun WeatherDetailsSection(weatherData: WeatherResponse) {
         // Astro info (sunrise, sunset, moon phase)
         AstroInfoCard(weatherData.forecast.forecastday.first().astro)
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Air Quality
-        AirQualityCard(weatherData.current.airQuality)
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Other weather details
-        WeatherDetailsCard(weatherData.current)
+        // Only show current weather details if current data is available
+        if (weatherData.current != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Air Quality
+            AirQualityCard(weatherData.current.airQuality)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Other weather details
+            WeatherDetailsCard(weatherData.current)
+        }
     }
 }
 

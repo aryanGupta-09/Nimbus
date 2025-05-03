@@ -13,9 +13,16 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -31,6 +38,10 @@ class WeatherRepository(private val context: Context) {
     
     // Get currently selected location ID
     val selectedLocationId = locationManager.selectedLocationId
+    
+    // Historical weather data
+    private val _historicalWeatherData = MutableStateFlow<List<WeatherResponse>>(emptyList())
+    val historicalWeatherData: StateFlow<List<WeatherResponse>> = _historicalWeatherData
     
     // Add a new location
     suspend fun addLocation(location: SavedLocation) {
@@ -79,6 +90,61 @@ class WeatherRepository(private val context: Context) {
             Result.success(response)
         } catch (e: Exception) {
             Log.e("WeatherRepository", "Error fetching weather data", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Get historical weather data for the past 7 days
+     */
+    suspend fun getHistoricalWeather(days: Int = 7): Result<List<WeatherResponse>> {
+        return try {
+            val locations = savedLocations.first()
+            val selectedId = selectedLocationId.first()
+            val selectedLocation = locations.find { it.id == selectedId }
+            
+            val query = if (selectedLocation?.isCurrent == true) {
+                getCurrentLocationString()
+            } else {
+                selectedLocation?.query ?: getCurrentLocationString()
+            }
+            
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val calendar = Calendar.getInstance()
+            
+            val historicalData = mutableListOf<WeatherResponse>()
+            
+            // Fetch data for each of the past days, but with a delay to avoid rate limiting
+            for (i in 1..days) {
+                try {
+                    // Start from yesterday (skip today as we already have current data)
+                    calendar.add(Calendar.DAY_OF_YEAR, -1)
+                    val date = dateFormat.format(calendar.time)
+                    
+                    val response = weatherApiService.getHistoricalWeather(
+                        query = query,
+                        date = date
+                    )
+                    
+                    historicalData.add(response)
+                    
+                    // Add a small delay between requests to avoid hitting rate limits
+                    if (i < days) {
+                        delay(500)  // 500ms delay between requests
+                    }
+                } catch (e: Exception) {
+                    // If a specific day fails, log it but continue with other days
+                    Log.e("WeatherRepository", "Error fetching historical data for a specific day", e)
+                }
+            }
+            
+            // Reset calendar
+            calendar.time = Date()
+            
+            _historicalWeatherData.value = historicalData
+            Result.success(historicalData)
+        } catch (e: Exception) {
+            Log.e("WeatherRepository", "Error fetching historical weather data", e)
             Result.failure(e)
         }
     }

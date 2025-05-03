@@ -13,6 +13,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -37,9 +38,14 @@ fun WeatherScreen(
 
     // Observe UI state from ViewModel
     val weatherState by viewModel.weatherState.collectAsState()
+    val historicalWeatherState by viewModel.historicalWeatherState.collectAsState()
+    
     val pullRefreshState = rememberPullRefreshState(
         refreshing = weatherState is WeatherScreenState.Loading,
-        onRefresh = { viewModel.fetchWeather() }
+        onRefresh = { 
+            viewModel.fetchWeather()
+            viewModel.fetchHistoricalWeather()
+        }
     )
 
     // Get currently selected location for header display
@@ -61,6 +67,11 @@ fun WeatherScreen(
         }
         else -> null
     }
+    
+    // Fetch historical weather data when location changes
+    LaunchedEffect(selectedLocationId) {
+        viewModel.fetchHistoricalWeather()
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -81,7 +92,9 @@ fun WeatherScreen(
                     WeatherContent(
                         weatherData = state.data,
                         locationName = selectedLocation?.name,
-                        fullLocationDisplay = fullLocationDisplay
+                        fullLocationDisplay = fullLocationDisplay,
+                        historicalWeatherState = historicalWeatherState,
+                        onRetryHistorical = { viewModel.fetchHistoricalWeather() }
                     )
                     PullRefreshIndicator(
                         refreshing = weatherState is WeatherScreenState.Loading,
