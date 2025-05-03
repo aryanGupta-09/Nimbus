@@ -5,6 +5,8 @@ import android.content.Context
 import android.location.Location
 import android.util.Log
 import com.example.nimbus.data.api.NetworkModule
+import com.example.nimbus.data.database.HistoricalWeatherEntity
+import com.example.nimbus.data.database.WeatherDatabase
 import com.example.nimbus.data.location.LocationManager
 import com.example.nimbus.data.model.Forecast
 import com.example.nimbus.data.model.WeatherResponse
@@ -24,6 +26,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -33,6 +36,10 @@ class WeatherRepository(private val context: Context) {
     private val fusedLocationClient: FusedLocationProviderClient by lazy {
         LocationServices.getFusedLocationProviderClient(context)
     }
+    
+    // Initialize Room database
+    private val database = WeatherDatabase.getDatabase(context)
+    private val historicalWeatherDao = database.historicalWeatherDao()
     
     // Get saved locations
     val savedLocations = locationManager.savedLocations
@@ -96,11 +103,15 @@ class WeatherRepository(private val context: Context) {
     }
     
     /**
-     * Get historical weather data for the past 7 days using a single API call
-     * Note: Using the date range (end_dt) feature requires a Pro plan or higher
+     * Get historical weather data for the past days
+     * First checks local database for cached data and only fetches missing days from API
+     * Excludes the current day as it's not considered historical data
      */
     suspend fun getHistoricalWeather(days: Int = 7): Result<List<WeatherResponse>> {
-        return try {
+        try {
+            // Clean up old cached data (older than 30 days)
+            cleanupOldData()
+            
             val locations = savedLocations.first()
             val selectedId = selectedLocationId.first()
             val selectedLocation = locations.find { it.id == selectedId }
@@ -114,74 +125,124 @@ class WeatherRepository(private val context: Context) {
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val calendar = Calendar.getInstance()
             
-            // Calculate end date (today or yesterday)
+            // Calculate end date (yesterday, not today)
+            calendar.add(Calendar.DAY_OF_YEAR, -1)
             val endDate = dateFormat.format(calendar.time)
             
-            // Calculate start date (7 days ago)
-            calendar.add(Calendar.DAY_OF_YEAR, -(days))
+            // Calculate start date ((days+1) days ago to maintain the requested number of days)
+            calendar.add(Calendar.DAY_OF_YEAR, -(days-1))
             val startDate = dateFormat.format(calendar.time)
             
-            try {
-                // Make a single API call with date range
-                val response = weatherApiService.getHistoricalWeather(
-                    query = query,
-                    date = startDate,
-                    endDate = endDate
-                )
-                
-                // Since we might get more than 7 days of data in a single response,
-                // we'll process it and create a list of daily responses
-                val dailyResponses = mutableListOf<WeatherResponse>()
-                
-                // The API returns a single response with multiple forecast days
-                // We need to extract each day into separate WeatherResponse objects
-                if (response.forecast.forecastday.isNotEmpty()) {
-                    for (forecastDay in response.forecast.forecastday) {
-                        // Create a new forecast object with only this day
-                        val singleDayForecast = Forecast(listOf(forecastDay))
-                        
-                        // Create a new WeatherResponse with the single day forecast
-                        val singleDayResponse = WeatherResponse(
-                            location = response.location,
-                            current = null, // Historical data doesn't have current
-                            forecast = singleDayForecast
-                        )
-                        
-                        dailyResponses.add(singleDayResponse)
-                    }
-                }
-                
-                // Update the state
-                _historicalWeatherData.value = dailyResponses
-                Result.success(dailyResponses)
-            } catch (e: Exception) {
-                // If the single API call fails (e.g., not on Pro plan), fall back to multiple calls
-                Log.w("WeatherRepository", "Single API call for historical data failed, falling back to multiple calls", e)
-                fetchHistoricalWeatherWithMultipleCalls(query, days)
+            // Check which dates we already have in the database
+            val cachedData = historicalWeatherDao.getHistoricalWeatherInDateRange(
+                locationQuery = query,
+                startDate = startDate,
+                endDate = endDate
+            )
+            
+            Log.d("WeatherRepository", "Found ${cachedData.size} cached historical records")
+            
+            // If we have all the requested days in cache, return them
+            if (cachedData.size >= days) {
+                val historicalData = cachedData.map { it.weatherData }
+                _historicalWeatherData.value = historicalData
+                return Result.success(historicalData)
             }
+            
+            // Otherwise, identify the missing dates and fetch only those
+            val cachedDates = cachedData.map { it.date }.toSet()
+            val allDates = getDatesInRange(startDate, endDate)
+            val missingDates = allDates.filter { it !in cachedDates }
+            
+            Log.d("WeatherRepository", "Need to fetch ${missingDates.size} missing dates")
+            
+            // First try with a date range request (if supported by API plan)
+            val historicalData = if (missingDates.isNotEmpty()) {
+                try {
+                    fetchMissingDatesWithRangeCall(query, missingDates)
+                } catch (e: Exception) {
+                    Log.w("WeatherRepository", "Range call failed, falling back to individual date calls", e)
+                    fetchMissingDatesWithIndividualCalls(query, missingDates)
+                }
+            } else {
+                emptyList()
+            }
+            
+            // Combine cached data with newly fetched data
+            val allData = (cachedData.map { it.weatherData } + historicalData).sortedByDescending { 
+                it.forecast.forecastday.firstOrNull()?.date ?: ""
+            }
+            
+            _historicalWeatherData.value = allData
+            return Result.success(allData)
         } catch (e: Exception) {
             Log.e("WeatherRepository", "Error fetching historical weather data", e)
-            Result.failure(e)
+            return Result.failure(e)
         }
     }
     
     /**
-     * Fallback method to fetch historical data using multiple API calls
-     * This is used if the single API call fails (e.g., not on Pro plan)
+     * Fetch missing historical dates using a date range API call
      */
-    private suspend fun fetchHistoricalWeatherWithMultipleCalls(query: String, days: Int): Result<List<WeatherResponse>> {
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val calendar = Calendar.getInstance()
+    private suspend fun fetchMissingDatesWithRangeCall(
+        query: String,
+        missingDates: List<String>
+    ): List<WeatherResponse> {
+        if (missingDates.isEmpty()) return emptyList()
         
+        // Sort dates to ensure we have the earliest first and latest last
+        val sortedDates = missingDates.sorted()
+        val startDate = sortedDates.first()
+        val endDate = sortedDates.last()
+        
+        val response = weatherApiService.getHistoricalWeather(
+            query = query,
+            date = startDate,
+            endDate = endDate
+        )
+        
+        val dailyResponses = mutableListOf<WeatherResponse>()
+        
+        // Extract each day into separate WeatherResponse objects
+        if (response.forecast.forecastday.isNotEmpty()) {
+            for (forecastDay in response.forecast.forecastday) {
+                // Only include the days that were missing
+                if (forecastDay.date in missingDates) {
+                    val singleDayForecast = Forecast(listOf(forecastDay))
+                    val singleDayResponse = WeatherResponse(
+                        location = response.location,
+                        current = null,
+                        forecast = singleDayForecast
+                    )
+                    
+                    dailyResponses.add(singleDayResponse)
+                    
+                    // Save to the database
+                    historicalWeatherDao.insertHistoricalWeather(
+                        HistoricalWeatherEntity(
+                            date = forecastDay.date,
+                            locationQuery = query,
+                            weatherData = singleDayResponse
+                        )
+                    )
+                }
+            }
+        }
+        
+        return dailyResponses
+    }
+    
+    /**
+     * Fetch missing historical dates using individual API calls
+     */
+    private suspend fun fetchMissingDatesWithIndividualCalls(
+        query: String,
+        missingDates: List<String>
+    ): List<WeatherResponse> {
         val historicalData = mutableListOf<WeatherResponse>()
         
-        // Fetch data for each of the past days, but with a delay to avoid rate limiting
-        for (i in 1..days) {
+        for (date in missingDates) {
             try {
-                // Start from yesterday (skip today as we already have current data)
-                calendar.add(Calendar.DAY_OF_YEAR, -1)
-                val date = dateFormat.format(calendar.time)
-                
                 val response = weatherApiService.getHistoricalWeather(
                     query = query,
                     date = date
@@ -189,21 +250,69 @@ class WeatherRepository(private val context: Context) {
                 
                 historicalData.add(response)
                 
+                // Save to the database
+                historicalWeatherDao.insertHistoricalWeather(
+                    HistoricalWeatherEntity(
+                        date = date,
+                        locationQuery = query,
+                        weatherData = response
+                    )
+                )
+                
                 // Add a small delay between requests to avoid hitting rate limits
-                if (i < days) {
+                if (date != missingDates.last()) {
                     delay(500)  // 500ms delay between requests
                 }
             } catch (e: Exception) {
                 // If a specific day fails, log it but continue with other days
-                Log.e("WeatherRepository", "Error fetching historical data for a specific day", e)
+                Log.e("WeatherRepository", "Error fetching historical data for $date", e)
             }
         }
         
-        // Reset calendar
-        calendar.time = Date()
+        return historicalData
+    }
+    
+    /**
+     * Generate a list of all dates in the given range
+     */
+    private fun getDatesInRange(startDate: String, endDate: String): List<String> {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val result = mutableListOf<String>()
         
-        _historicalWeatherData.value = historicalData
-        return Result.success(historicalData)
+        val startCalendar = Calendar.getInstance().apply {
+            time = dateFormat.parse(startDate) ?: Date()
+        }
+        
+        val endCalendar = Calendar.getInstance().apply {
+            time = dateFormat.parse(endDate) ?: Date()
+        }
+        
+        while (!startCalendar.after(endCalendar)) {
+            result.add(dateFormat.format(startCalendar.time))
+            startCalendar.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        
+        return result
+    }
+    
+    /**
+     * Clean up historical data older than 30 days
+     * Safely handles the case when the database hasn't been fully created yet
+     */
+    private suspend fun cleanupOldData() {
+        try {
+            // First check if the table exists to avoid SQLite errors on first run
+            if (historicalWeatherDao.doesTableExist()) {
+                val thirtyDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
+                historicalWeatherDao.deleteOldData(thirtyDaysAgo)
+            } else {
+                Log.d("WeatherRepository", "Skipping cleanup - historical_weather table doesn't exist yet")
+            }
+        } catch (e: Exception) {
+            // Catch any SQLite exceptions that might occur
+            Log.w("WeatherRepository", "Error during database cleanup, ignoring", e)
+            // Continue execution - this is just a maintenance operation that can be skipped if there's an issue
+        }
     }
     
     @SuppressLint("MissingPermission")
