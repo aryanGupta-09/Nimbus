@@ -1,8 +1,13 @@
 package com.example.nimbus
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +29,7 @@ import com.example.nimbus.ui.theme.NimbusTheme
 import kotlinx.coroutines.launch
 import com.example.nimbus.data.model.local.SavedLocation
 import com.example.nimbus.data.repository.WeatherRepository
+import com.example.nimbus.data.worker.WorkManagerHelper
 
 class MainActivity : ComponentActivity() {
     
@@ -31,6 +37,19 @@ class MainActivity : ComponentActivity() {
     sealed class Screen {
         data object Weather : Screen()
         data object Locations : Screen()
+    }
+    
+    // Weather update broadcast receiver
+    private val weatherUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "com.example.nimbus.WEATHER_UPDATED") {
+                Log.d("MainActivity", "Received weather update broadcast")
+                // Trigger UI refresh via ViewModel
+                // This will notify any active ViewModels that they need to refresh their data
+                val localBroadcastIntent = Intent("com.example.nimbus.INTERNAL_WEATHER_REFRESH")
+                sendBroadcast(localBroadcastIntent, Manifest.permission.WAKE_LOCK)
+            }
+        }
     }
     
     private val requestPermissionLauncher = registerForActivityResult(
@@ -69,12 +88,39 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    override fun onResume() {
+        super.onResume()
+        // Register broadcast receiver for weather updates with proper flags
+        try {
+            registerReceiver(
+                weatherUpdateReceiver,
+                IntentFilter("com.example.nimbus.WEATHER_UPDATED"),
+                Context.RECEIVER_NOT_EXPORTED
+            )
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error registering receiver", e)
+        }
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // Unregister broadcast receiver
+        try {
+            unregisterReceiver(weatherUpdateReceiver)
+        } catch (e: IllegalArgumentException) {
+            // Receiver not registered, ignore
+        }
+    }
+    
     private fun setupWeatherApp() {
         // Set current location as the selected location whenever app starts
         val repository = WeatherRepository(this)
         lifecycleScope.launch {
             repository.setSelectedLocation(SavedLocation.currentLocation().id)
         }
+        
+        // Initialize background weather refresh
+        WorkManagerHelper.schedulePeriodicWeatherRefresh(this)
         
         setContent {
             NimbusTheme {

@@ -13,6 +13,7 @@ import com.example.nimbus.data.model.WeatherResponse
 import com.example.nimbus.data.model.local.SavedLocation
 import com.example.nimbus.data.model.local.CachedWeatherData
 import com.example.nimbus.data.model.local.OfflineDataInfo
+import com.example.nimbus.data.worker.WorkManagerHelper
 import com.example.nimbus.util.NetworkUtils
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -20,7 +21,9 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -54,6 +57,10 @@ class WeatherRepository(private val context: Context) {
     // Historical weather data
     private val _historicalWeatherData = MutableStateFlow<List<WeatherResponse>>(emptyList())
     val historicalWeatherData: StateFlow<List<WeatherResponse>> = _historicalWeatherData
+    
+    // Background refresh notification
+    private val _backgroundRefreshEvent = MutableStateFlow(0L)
+    val backgroundRefreshEvent: StateFlow<Long> = _backgroundRefreshEvent
     
     // Session-based cache for weather data
     private val sessionCache = mutableMapOf<String, CachedWeatherData>()
@@ -383,6 +390,65 @@ class WeatherRepository(private val context: Context) {
             // Catch any SQLite exceptions that might occur
             Log.w("WeatherRepository", "Error during database cleanup, ignoring", e)
             // Continue execution - this is just a maintenance operation that can be skipped if there's an issue
+        }
+    }
+    
+    /**
+     * Force a refresh of the current GPS location and fetch weather for that location.
+     * This is specifically designed for background updates to ensure the most current location is used.
+     */
+    suspend fun refreshCurrentLocationWeather(): Result<WeatherResponse> {
+        return try {
+            // Force a new GPS location fetch by calling getCurrentLocationString() directly
+            // This will get fresh GPS coordinates instead of using cached values
+            val currentLocationString = getCurrentLocationString()
+            
+            // Fetch weather data for the new GPS coordinates
+            val response = weatherApiService.getWeatherForecast(query = currentLocationString)
+            
+            // Cache the response
+            sessionCache[currentLocationString] = CachedWeatherData(
+                locationQuery = currentLocationString,
+                weatherData = response,
+                timestamp = System.currentTimeMillis(),
+                fromCache = false
+            )
+            
+            // If successful, reschedule the work to maintain the proper refresh schedule
+            WorkManagerHelper.schedulePeriodicWeatherRefresh(context)
+            
+            // Emit event to notify UI components about the background refresh
+            _backgroundRefreshEvent.emit(System.currentTimeMillis())
+            
+            Result.success(response)
+        } catch (e: Exception) {
+            Log.e("WeatherRepository", "Error refreshing current GPS location weather", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Refresh weather data for background updates.
+     * Optimized version of getSelectedLocationWeather() for use in background tasks.
+     * Returns true if successful, false otherwise.
+     */
+    suspend fun refreshWeatherInBackground(): Boolean {
+        try {
+            val result = getSelectedLocationWeather()
+            if (result.isSuccess) {
+                // If we successfully refreshed the weather, reschedule the work
+                // This ensures we maintain the proper refresh schedule even after device restarts
+                WorkManagerHelper.schedulePeriodicWeatherRefresh(context)
+                
+                // Emit event to notify UI components about the background refresh
+                _backgroundRefreshEvent.emit(System.currentTimeMillis())
+                
+                return true
+            }
+            return false
+        } catch (e: Exception) {
+            Log.e("WeatherRepository", "Error refreshing weather in background", e)
+            return false
         }
     }
     
