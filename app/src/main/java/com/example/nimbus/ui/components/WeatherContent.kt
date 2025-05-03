@@ -44,7 +44,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun WeatherContent(
     weatherData: WeatherResponse,
-    locationName: String? = null
+    locationName: String? = null,
+    fullLocationDisplay: String? = null
 ) {
     val scrollState = rememberScrollState()
     
@@ -67,11 +68,20 @@ fun WeatherContent(
                 .padding(16.dp)
         ) {
             // Location and current weather header
-            CurrentWeatherHeader(
-                locationName = locationName ?: weatherData.location.name,
-                country = weatherData.location.country,
-                current = weatherData.current
-            )
+            if (fullLocationDisplay != null) {
+                // Use the full location display if provided
+                CurrentWeatherHeaderWithFullLocation(
+                    fullLocationDisplay = fullLocationDisplay,
+                    current = weatherData.current
+                )
+            } else {
+                // Otherwise use the old method
+                CurrentWeatherHeader(
+                    locationName = locationName ?: weatherData.location.name,
+                    country = weatherData.location.country,
+                    current = weatherData.current
+                )
+            }
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -98,6 +108,69 @@ fun CurrentWeatherHeader(
     ) {
         Text(
             text = "$locationName, $country",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Weather icon
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data("https:${current.condition.icon}")
+                    .crossfade(true)
+                    .build(),
+                contentDescription = current.condition.text,
+                modifier = Modifier.size(64.dp),
+                contentScale = ContentScale.Fit
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            // Temperature
+            Text(
+                text = "${current.tempC.toInt()}°C",
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        Text(
+            text = current.condition.text,
+            style = MaterialTheme.typography.bodyLarge
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "Feels like ${current.feelslikeC.toInt()}°C",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        Text(
+            text = "Last updated: ${current.lastUpdated}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@Composable
+fun CurrentWeatherHeaderWithFullLocation(
+    fullLocationDisplay: String,
+    current: Current
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = fullLocationDisplay,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )

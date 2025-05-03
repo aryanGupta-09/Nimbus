@@ -46,6 +46,21 @@ fun WeatherScreen(
     val selectedLocationId by repository.selectedLocationId.collectAsState(initial = "")
     val savedLocations by repository.savedLocations.collectAsState(initial = emptyList())
     val selectedLocation = savedLocations.find { it.id == selectedLocationId }
+    
+    // Create a full location display string that includes the country
+    val fullLocationDisplay = when {
+        selectedLocation != null -> {
+            if (weatherState is WeatherScreenState.Success) {
+                // When we have weather data, use the country from the API response
+                val weatherData = (weatherState as WeatherScreenState.Success).data
+                "${selectedLocation.name}, ${weatherData.location.country}"
+            } else {
+                // If we don't have weather data yet, just show the name
+                selectedLocation.name
+            }
+        }
+        else -> null
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -65,7 +80,8 @@ fun WeatherScreen(
                 ) {
                     WeatherContent(
                         weatherData = state.data,
-                        locationName = selectedLocation?.name
+                        locationName = selectedLocation?.name,
+                        fullLocationDisplay = fullLocationDisplay
                     )
                     PullRefreshIndicator(
                         refreshing = weatherState is WeatherScreenState.Loading,
