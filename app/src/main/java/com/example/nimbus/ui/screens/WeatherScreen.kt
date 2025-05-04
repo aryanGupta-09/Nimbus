@@ -12,10 +12,16 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,12 +34,19 @@ import com.example.nimbus.ui.components.LoadingScreen
 import com.example.nimbus.ui.components.WeatherContent
 import com.example.nimbus.ui.components.WeatherErrorScreen
 import com.example.nimbus.ui.components.OfflineBanner
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
 
-@OptIn(ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherScreen(
     onNavigateToLocations: () -> Unit = {}
 ) {
+    // State to track temperature unit
+    var isCelsius by rememberSaveable { mutableStateOf(true) }
     val context = LocalContext.current
     val repository = remember { WeatherRepository(context) }
     val viewModel: WeatherViewModel = viewModel()
@@ -78,6 +91,26 @@ fun WeatherScreen(
     }
 
     Scaffold(
+        // Transparent top bar with unit switch
+        topBar = {
+            TopAppBar(
+                title = {},
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF343539)),
+                actions = {
+                    Text(text = if (isCelsius) "°C" else "°F", modifier = Modifier.padding(end = 8.dp))
+                    Switch(
+                        checked = !isCelsius,
+                        onCheckedChange = { isCelsius = !it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            uncheckedThumbColor = MaterialTheme.colorScheme.surface,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                    )
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onNavigateToLocations) {
                 Icon(Icons.Default.LocationOn, contentDescription = "Manage Locations")
@@ -115,7 +148,8 @@ fun WeatherScreen(
                             locationName = selectedLocation?.name,
                             fullLocationDisplay = fullLocationDisplay,
                             historicalWeatherState = historicalWeatherState,
-                            onRetryHistorical = { viewModel.fetchHistoricalWeather() }
+                            onRetryHistorical = { viewModel.fetchHistoricalWeather() },
+                            isCelsius = isCelsius
                         )
                         PullRefreshIndicator(
                             refreshing = weatherState is WeatherScreenState.Loading,

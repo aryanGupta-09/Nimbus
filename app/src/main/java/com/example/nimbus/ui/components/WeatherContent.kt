@@ -17,7 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,7 +48,8 @@ fun WeatherContent(
     locationName: String? = null,
     fullLocationDisplay: String? = null,
     historicalWeatherState: HistoricalWeatherState = HistoricalWeatherState.Loading,
-    onRetryHistorical: () -> Unit = {}
+    onRetryHistorical: () -> Unit = {},
+    isCelsius: Boolean
 ) {
     val scrollState = rememberScrollState()
     
@@ -76,14 +77,16 @@ fun WeatherContent(
                     // Use the full location display if provided
                     CurrentWeatherHeaderWithFullLocation(
                         fullLocationDisplay = fullLocationDisplay,
-                        current = weatherData.current
+                        current = weatherData.current,
+                        isCelsius = isCelsius
                     )
                 } else {
                     // Otherwise use the old method
                     CurrentWeatherHeader(
                         locationName = locationName ?: weatherData.location.name,
                         country = weatherData.location.country,
-                        current = weatherData.current
+                        current = weatherData.current,
+                        isCelsius = isCelsius
                     )
                 }
                 
@@ -96,7 +99,7 @@ fun WeatherContent(
             }
             
             // Forecast for the next days
-            ForecastSection(weatherData.forecast.forecastday)
+            ForecastSection(weatherData.forecast.forecastday, isCelsius)
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -106,21 +109,24 @@ fun WeatherContent(
                     HistoricalWeatherSection(
                         historicalData = emptyList(),
                         isLoading = true,
-                        onRetry = onRetryHistorical
+                        onRetry = onRetryHistorical,
+                        isCelsius = isCelsius
                     )
                 }
                 is HistoricalWeatherState.Success -> {
                     HistoricalWeatherSection(
                         historicalData = historicalWeatherState.data,
                         isLoading = false,
-                        onRetry = onRetryHistorical
+                        onRetry = onRetryHistorical,
+                        isCelsius = isCelsius
                     )
                 }
                 is HistoricalWeatherState.Error -> {
                     HistoricalWeatherSection(
                         historicalData = emptyList(),
                         isLoading = false,
-                        onRetry = onRetryHistorical
+                        onRetry = onRetryHistorical,
+                        isCelsius = isCelsius
                     )
                 }
             }
@@ -132,7 +138,8 @@ fun WeatherContent(
 fun CurrentWeatherHeader(
     locationName: String,
     country: String,
-    current: Current
+    current: Current,
+    isCelsius: Boolean
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -164,7 +171,7 @@ fun CurrentWeatherHeader(
             
             // Temperature
             Text(
-                text = "${current.tempC.toInt()}°C",
+                text = "${if (isCelsius) current.tempC.toInt() else current.tempF.toInt()}°${if (isCelsius) "C" else "F"}",
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -178,7 +185,7 @@ fun CurrentWeatherHeader(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Feels like ${current.feelslikeC.toInt()}°C",
+            text = "Feels like ${if (isCelsius) current.feelslikeC.toInt() else current.feelslikeF.toInt()}°${if (isCelsius) "C" else "F"}",
             style = MaterialTheme.typography.bodyMedium
         )
         
@@ -195,7 +202,8 @@ fun CurrentWeatherHeader(
 @Composable
 fun CurrentWeatherHeaderWithFullLocation(
     fullLocationDisplay: String,
-    current: Current
+    current: Current,
+    isCelsius: Boolean
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -227,7 +235,7 @@ fun CurrentWeatherHeaderWithFullLocation(
             
             // Temperature
             Text(
-                text = "${current.tempC.toInt()}°C",
+                text = "${if (isCelsius) current.tempC.toInt() else current.tempF.toInt()}°${if (isCelsius) "C" else "F"}",
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -241,7 +249,7 @@ fun CurrentWeatherHeaderWithFullLocation(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Feels like ${current.feelslikeC.toInt()}°C",
+            text = "Feels like ${if (isCelsius) current.feelslikeC.toInt() else current.feelslikeF.toInt()}°${if (isCelsius) "C" else "F"}",
             style = MaterialTheme.typography.bodyMedium
         )
         
@@ -333,7 +341,7 @@ fun AstroInfoCard(astro: Astro) {
             }
             
             Spacer(modifier = Modifier.height(16.dp))
-            Divider()
+            HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
             
             // Moon info
@@ -570,7 +578,10 @@ fun WeatherDetailItem(label: String, value: String) {
 }
 
 @Composable
-fun ForecastSection(forecastDays: List<ForecastDay>) {
+fun ForecastSection(
+    forecastDays: List<ForecastDay>,
+    isCelsius: Boolean
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -587,10 +598,10 @@ fun ForecastSection(forecastDays: List<ForecastDay>) {
             Spacer(modifier = Modifier.height(16.dp))
             
             forecastDays.take(3).forEach { day ->
-                ForecastDayItem(day)
+                ForecastDayItem(day, isCelsius)
                 
                 if (day != forecastDays.take(3).last()) {
-                    Divider(
+                    HorizontalDivider(
                         modifier = Modifier.padding(vertical = 12.dp),
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                     )
@@ -601,7 +612,10 @@ fun ForecastSection(forecastDays: List<ForecastDay>) {
 }
 
 @Composable
-fun ForecastDayItem(forecastDay: ForecastDay) {
+fun ForecastDayItem(
+    forecastDay: ForecastDay,
+    isCelsius: Boolean
+) {
     val date = try {
         val localDate = LocalDate.parse(forecastDay.date)
         val formatter = DateTimeFormatter.ofPattern("EEE, MMM d")
@@ -643,7 +657,7 @@ fun ForecastDayItem(forecastDay: ForecastDay) {
         
         // Min/Max temp
         Text(
-            text = "${forecastDay.day.mintempC.toInt()}° / ${forecastDay.day.maxtempC.toInt()}°",
+            text = "${if (isCelsius) forecastDay.day.mintempC.toInt() else forecastDay.day.mintempF.toInt()}° / ${if (isCelsius) forecastDay.day.maxtempC.toInt() else forecastDay.day.maxtempF.toInt()}°",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold
         )

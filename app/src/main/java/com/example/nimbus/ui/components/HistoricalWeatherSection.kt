@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,7 +33,8 @@ import java.time.format.DateTimeFormatter
 fun HistoricalWeatherSection(
     historicalData: List<WeatherResponse>,
     isLoading: Boolean,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    isCelsius: Boolean
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -71,10 +72,10 @@ fun HistoricalWeatherSection(
                 historicalData.take(7).forEach { weatherData ->
                     val forecastDay = weatherData.forecast.forecastday.firstOrNull()
                     if (forecastDay != null) {
-                        HistoricalDayItem(weatherData)
+                        HistoricalDayItem(weatherData, isCelsius)
                         
                         if (weatherData != historicalData.take(7).last()) {
-                            Divider(
+                            HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 12.dp),
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                             )
@@ -87,7 +88,10 @@ fun HistoricalWeatherSection(
 }
 
 @Composable
-fun HistoricalDayItem(weatherData: WeatherResponse) {
+fun HistoricalDayItem(
+    weatherData: WeatherResponse,
+    isCelsius: Boolean
+) {
     val forecastDay = weatherData.forecast.forecastday.firstOrNull()
     if (forecastDay != null) {
         val date = try {
@@ -131,7 +135,7 @@ fun HistoricalDayItem(weatherData: WeatherResponse) {
             
             // Min/Max temp
             Text(
-                text = "${forecastDay.day.mintempC.toInt()}° / ${forecastDay.day.maxtempC.toInt()}°",
+                text = "${if (isCelsius) forecastDay.day.mintempC.toInt() else forecastDay.day.mintempF.toInt()}° / ${if (isCelsius) forecastDay.day.maxtempC.toInt() else forecastDay.day.maxtempF.toInt()}°",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold
             )
