@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
@@ -59,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import com.example.nimbus.data.model.local.SavedLocation
 import com.example.nimbus.data.repository.WeatherRepository
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.ArrowBack
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,8 +80,15 @@ fun LocationsScreen(
             TopAppBar(
                 title = { Text("Manage Locations") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.size(56.dp)  // larger tap area
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(44.dp)  // bigger icon
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

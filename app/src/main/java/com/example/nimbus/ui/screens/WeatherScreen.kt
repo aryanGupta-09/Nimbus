@@ -4,7 +4,6 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,7 +11,6 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.SwitchDefaults
@@ -42,6 +40,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.IconButton
 import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Box
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -98,7 +105,7 @@ fun WeatherScreen(
     Scaffold(
         // Transparent top bar with unit switch
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onToggleTheme) {
                         AsyncImage(
@@ -108,7 +115,23 @@ fun WeatherScreen(
                         )
                     }
                 },
-                title = {},
+                title = {
+                    Button(
+                        onClick = { /* placeholder for AI action */ },
+                        modifier = Modifier.size(40.dp),  // increased button size
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF525254)
+                        )
+                    ) {
+                        AsyncImage(
+                            model = if (isDarkTheme) "https://cdn-icons-png.flaticon.com/512/8750/8750768.png" else "https://cdn-icons-png.flaticon.com/512/8750/8750710.png",
+                            contentDescription = "AI Mode",
+                            modifier = Modifier.size(32.dp)  // increased icon size
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (!isDarkTheme) Color(0xFFE6E1E8) else MaterialTheme.colorScheme.surface
                 ),

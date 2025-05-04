@@ -104,6 +104,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
     
+    // Support for AutoMirrored icons
+    implementation("androidx.compose.material:material-icons-extended")
+    
     // Testing dependencies
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
