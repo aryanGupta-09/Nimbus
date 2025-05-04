@@ -41,6 +41,12 @@ import com.example.nimbus.data.model.WeatherResponse
 import com.example.nimbus.ui.screens.HistoricalWeatherState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airbnb.lottie.compose.LottieConstants
+import java.time.LocalTime
+import java.time.LocalDateTime
 
 @Composable
 fun WeatherContent(
@@ -78,7 +84,10 @@ fun WeatherContent(
                     CurrentWeatherHeaderWithFullLocation(
                         fullLocationDisplay = fullLocationDisplay,
                         current = weatherData.current,
-                        isCelsius = isCelsius
+                        isCelsius = isCelsius,
+                        localtime = weatherData.location.localtime,
+                        sunrise = weatherData.forecast.forecastday.first().astro.sunrise,
+                        sunset = weatherData.forecast.forecastday.first().astro.sunset
                     )
                 } else {
                     // Otherwise use the old method
@@ -86,7 +95,10 @@ fun WeatherContent(
                         locationName = locationName ?: weatherData.location.name,
                         country = weatherData.location.country,
                         current = weatherData.current,
-                        isCelsius = isCelsius
+                        isCelsius = isCelsius,
+                        localtime = weatherData.location.localtime,
+                        sunrise = weatherData.forecast.forecastday.first().astro.sunrise,
+                        sunset = weatherData.forecast.forecastday.first().astro.sunset
                     )
                 }
                 
@@ -139,7 +151,10 @@ fun CurrentWeatherHeader(
     locationName: String,
     country: String,
     current: Current,
-    isCelsius: Boolean
+    isCelsius: Boolean,
+    localtime: String,
+    sunrise: String,
+    sunset: String
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -156,22 +171,75 @@ fun CurrentWeatherHeader(
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Weather icon
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data("https:${current.condition.icon}")
-                    .crossfade(true)
-                    .build(),
-                contentDescription = current.condition.text,
-                modifier = Modifier.size(64.dp),
-                contentScale = ContentScale.Fit
-            )
+            // Determine current time using API-provided localtime
+            val now = runCatching { LocalDateTime.parse(localtime, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")).toLocalTime() }.getOrNull() ?: LocalTime.now()
+            val fmt = DateTimeFormatter.ofPattern("h:mm a")
+            val sunsetTime = runCatching { LocalTime.parse(sunset, fmt) }.getOrNull() ?: now
+            val sunriseTime = runCatching { LocalTime.parse(sunrise, fmt) }.getOrNull() ?: now
+            val condText = current.condition.text
+            // Animation logic based on condition and time
+            when {
+                condText.contains("thunder", ignoreCase = true) -> {
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url("https://lottie.host/7ecb5799-5531-4387-aca7-3b33a5ff8727/SoKzuvPsWL.lottie")).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("partly cloudy", ignoreCase = true) -> {
+                    // Partly cloudy: rely on API-provided isDay flag for correct day/night
+                    val dayUrl = "https://lottie.host/1cdcfda5-6e5e-47bb-8e1e-bfec6e3d0ae0/Kq0aAfLIqC.lottie"
+                    val nightUrl = "https://lottie.host/7b298f06-75ca-42e1-bdbb-7ffd3f1b1f16/elwa52RDsI.lottie"
+                    val url = if (current.isDay == 1) dayUrl else nightUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("sunny", ignoreCase = true) -> {
+                    val url = "https://lottie.host/8f9a2f9f-1be3-4a11-bc52-2f870e06485c/copScDooXi.lottie"
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("clear", ignoreCase = true) -> {
+                    // Use day animation only between sunrise and sunset, else night
+                    val dayClearUrl = "https://lottie.host/8f9a2f9f-1be3-4a11-bc52-2f870e06485c/copScDooXi.lottie"
+                    val nightClearUrl = "https://lottie.host/64c86eeb-ec84-4fb9-97e4-ea27fa2fe8ee/nHVSLj6Bhe.lottie"
+                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayClearUrl else nightClearUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("overcast", ignoreCase = true) -> {
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url("https://lottie.host/310ae1aa-03ff-4e88-9dd8-76c6fdc6a96d/5Zosi3mtEw.lottie")).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("mist", ignoreCase = true) -> {
+                    // Mist animation: day vs night
+                    val dayMistUrl = "https://lottie.host/310ae1aa-03ff-4e88-9dd8-76c6fdc6a96d/5Zosi3mtEw.lottie"
+                    val nightMistUrl = "https://lottie.host/bf10ee8d-182b-4e2a-a308-1030655c0238/ITiX7Ns5ca.lottie"
+                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayMistUrl else nightMistUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("patchy rain nearby", ignoreCase = true) -> {
+                    // Patchy rain animation: day vs night
+                    val dayUrl = "https://lottie.host/15ac356a-6872-4832-b2f9-c4861a4ea9ab/5EYIWzbm59.lottie"
+                    val nightUrl = "https://lottie.host/951f760f-10e7-42f8-bc0d-1cdbdd89f694/SxvvKI0c3X.lottie"
+                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayUrl else nightUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                else -> {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data("https:${current.condition.icon}").crossfade(true).build(),
+                        contentDescription = current.condition.text,
+                        modifier = Modifier.size(64.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
             
             Spacer(modifier = Modifier.width(8.dp))
             
             // Temperature
             Text(
                 text = "${if (isCelsius) current.tempC.toInt() else current.tempF.toInt()}°${if (isCelsius) "C" else "F"}",
+                modifier = Modifier.align(Alignment.CenterVertically),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -203,7 +271,10 @@ fun CurrentWeatherHeader(
 fun CurrentWeatherHeaderWithFullLocation(
     fullLocationDisplay: String,
     current: Current,
-    isCelsius: Boolean
+    isCelsius: Boolean,
+    localtime: String,
+    sunrise: String,
+    sunset: String
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -220,22 +291,74 @@ fun CurrentWeatherHeaderWithFullLocation(
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Weather icon
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data("https:${current.condition.icon}")
-                    .crossfade(true)
-                    .build(),
-                contentDescription = current.condition.text,
-                modifier = Modifier.size(64.dp),
-                contentScale = ContentScale.Fit
-            )
+            // Determine current time using API-provided localtime
+            val now = runCatching { LocalDateTime.parse(localtime, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")).toLocalTime() }.getOrNull() ?: LocalTime.now()
+            val fmt = DateTimeFormatter.ofPattern("h:mm a")
+            val sunsetTime = runCatching { LocalTime.parse(sunset, fmt) }.getOrNull() ?: now
+            val sunriseTime = runCatching { LocalTime.parse(sunrise, fmt) }.getOrNull() ?: now
+            val condText = current.condition.text
+            // Animation logic based on condition and time
+            when {
+                condText.contains("thunder", ignoreCase = true) -> {
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url("https://lottie.host/7ecb5799-5531-4387-aca7-3b33a5ff8727/SoKzuvPsWL.lottie")).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("partly cloudy", ignoreCase = true) -> {
+                    // Partly cloudy: rely on API-provided isDay flag for correct day/night
+                    val dayUrl = "https://lottie.host/1cdcfda5-6e5e-47bb-8e1e-bfec6e3d0ae0/Kq0aAfLIqC.lottie"
+                    val nightUrl = "https://lottie.host/7b298f06-75ca-42e1-bdbb-7ffd3f1b1f16/elwa52RDsI.lottie"
+                    val url = if (current.isDay == 1) dayUrl else nightUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("sunny", ignoreCase = true) -> {
+                    val url = "https://lottie.host/8f9a2f9f-1be3-4a11-bc52-2f870e06485c/copScDooXi.lottie"
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("clear", ignoreCase = true) -> {
+                    val dayClearUrl = "https://lottie.host/8f9a2f9f-1be3-4a11-bc52-2f870e06485c/copScDooXi.lottie"
+                    val nightClearUrl = "https://lottie.host/64c86eeb-ec84-4fb9-97e4-ea27fa2fe8ee/nHVSLj6Bhe.lottie"
+                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayClearUrl else nightClearUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("overcast", ignoreCase = true) -> {
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url("https://lottie.host/310ae1aa-03ff-4e88-9dd8-76c6fdc6a96d/5Zosi3mtEw.lottie")).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("mist", ignoreCase = true) -> {
+                    // Mist animation: day vs night
+                    val dayMistUrl = "https://lottie.host/310ae1aa-03ff-4e88-9dd8-76c6fdc6a96d/5Zosi3mtEw.lottie"
+                    val nightMistUrl = "https://lottie.host/bf10ee8d-182b-4e2a-a308-1030655c0238/ITiX7Ns5ca.lottie"
+                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayMistUrl else nightMistUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                condText.contains("patchy rain nearby", ignoreCase = true) -> {
+                    // Patchy rain animation: day vs night
+                    val dayUrl = "https://lottie.host/15ac356a-6872-4832-b2f9-c4861a4ea9ab/5EYIWzbm59.lottie"
+                    val nightUrl = "https://lottie.host/951f760f-10e7-42f8-bc0d-1cdbdd89f694/SxvvKI0c3X.lottie"
+                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayUrl else nightUrl
+                    val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
+                    comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
+                }
+                else -> {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data("https:${current.condition.icon}").crossfade(true).build(),
+                        contentDescription = current.condition.text,
+                        modifier = Modifier.size(64.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
             
             Spacer(modifier = Modifier.width(8.dp))
             
             // Temperature
             Text(
                 text = "${if (isCelsius) current.tempC.toInt() else current.tempF.toInt()}°${if (isCelsius) "C" else "F"}",
+                modifier = Modifier.align(Alignment.CenterVertically),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -597,7 +720,7 @@ fun ForecastSection(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            forecastDays.take(3).forEach { day ->
+            forecastDays.take(3).forEach { day -> 
                 ForecastDayItem(day, isCelsius)
                 
                 if (day != forecastDays.take(3).last()) {

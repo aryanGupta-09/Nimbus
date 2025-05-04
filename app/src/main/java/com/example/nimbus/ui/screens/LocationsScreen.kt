@@ -80,14 +80,10 @@ fun LocationsScreen(
             TopAppBar(
                 title = { Text("Manage Locations") },
                 navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.size(56.dp)  // larger tap area
-                    ) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            modifier = Modifier.size(44.dp)  // bigger icon
+                            contentDescription = "Back"
                         )
                     }
                 },

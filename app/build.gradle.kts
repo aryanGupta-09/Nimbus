@@ -113,6 +113,9 @@ dependencies {
     // Support for AutoMirrored icons
     implementation("androidx.compose.material:material-icons-extended")
     
+    // Lottie animations for weather icons
+    implementation("com.airbnb.android:lottie-compose:4.0.0")
+    
     // Testing dependencies
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

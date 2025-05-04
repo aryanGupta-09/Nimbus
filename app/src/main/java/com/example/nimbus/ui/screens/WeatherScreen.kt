@@ -123,7 +123,7 @@ fun WeatherScreen(
                         shape = CircleShape,
                         contentPadding = PaddingValues(0.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF525254)
+                            containerColor = if (!isDarkTheme) Color(0xFFD0C5E5) else Color(0xFF525254)
                         )
                     ) {
                         AsyncImage(
