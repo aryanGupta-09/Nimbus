@@ -54,6 +54,7 @@ import androidx.compose.foundation.layout.Box
 @Composable
 fun WeatherScreen(
     onNavigateToLocations: () -> Unit = {},
+    onNavigateToSkyAnalysis: () -> Unit = {},
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit
 ) {
@@ -117,7 +118,7 @@ fun WeatherScreen(
                 },
                 title = {
                     Button(
-                        onClick = { /* placeholder for AI action */ },
+                        onClick = onNavigateToSkyAnalysis,
                         modifier = Modifier.size(40.dp),  // increased button size
                         shape = CircleShape,
                         contentPadding = PaddingValues(0.dp),

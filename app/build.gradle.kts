@@ -15,6 +15,7 @@ if (apikeyPropertiesFile.exists()) {
     apikeyProperties.load(FileInputStream(apikeyPropertiesFile))
 } else {
     apikeyProperties.setProperty("WEATHER_API_KEY", "")
+    apikeyProperties.setProperty("GEMINI_API_KEY", "")
 }
 
 android {
@@ -39,9 +40,11 @@ android {
                 "proguard-rules.pro"
             )
             buildConfigField("String", "WEATHER_API_KEY", apikeyProperties["WEATHER_API_KEY"]?.toString()?.let { "\"$it\"" } ?: "\"\"")
+            buildConfigField("String", "GEMINI_API_KEY", apikeyProperties["GEMINI_API_KEY"]?.toString()?.let { "\"$it\"" } ?: "\"\"")
         }
         debug {
             buildConfigField("String", "WEATHER_API_KEY", apikeyProperties["WEATHER_API_KEY"]?.toString()?.let { "\"$it\"" } ?: "\"\"")
+            buildConfigField("String", "GEMINI_API_KEY", apikeyProperties["GEMINI_API_KEY"]?.toString()?.let { "\"$it\"" } ?: "\"\"")
         }
     }
     compileOptions {
@@ -62,6 +65,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    
+    // Gemini AI dependencies
+    implementation("com.google.ai.client.generativeai:generativeai:0.2.2")
     
     // WorkManager for background tasks
     implementation("androidx.work:work-runtime-ktx:2.9.0")

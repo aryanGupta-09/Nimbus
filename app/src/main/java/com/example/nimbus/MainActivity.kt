@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.nimbus.ui.screens.LocationsScreen
+import com.example.nimbus.ui.screens.SkyAnalysisScreen
 import com.example.nimbus.ui.screens.WeatherScreen
 import com.example.nimbus.ui.theme.NimbusTheme
 import kotlinx.coroutines.launch
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
     sealed class Screen {
         data object Weather : Screen()
         data object Locations : Screen()
+        data object SkyAnalysis : Screen()
     }
     
     // Weather update broadcast receiver
@@ -137,6 +139,9 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToLocations = {
                                     currentScreen = Screen.Locations
                                 },
+                                onNavigateToSkyAnalysis = {
+                                    currentScreen = Screen.SkyAnalysis
+                                },
                                 isDarkTheme = darkTheme,
                                 onToggleTheme = { darkTheme = !darkTheme }
                             )
@@ -146,6 +151,14 @@ class MainActivity : ComponentActivity() {
                                 onNavigateBack = {
                                     currentScreen = Screen.Weather
                                 }
+                            )
+                        }
+                        is Screen.SkyAnalysis -> {
+                            SkyAnalysisScreen(
+                                onNavigateBack = {
+                                    currentScreen = Screen.Weather
+                                },
+                                isDarkTheme = darkTheme
                             )
                         }
                     }
