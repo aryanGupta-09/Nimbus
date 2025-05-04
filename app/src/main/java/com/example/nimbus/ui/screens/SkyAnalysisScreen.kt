@@ -1,15 +1,22 @@
 package com.example.nimbus.ui.screens
 
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
-import android.net.Uri
-import android.os.Build
+import android.Manifest
+import android.content.ContentValues
+import android.content.pm.PackageManager
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,16 +28,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,8 +53,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,12 +76,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.nimbus.BuildConfig
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
-import kotlinx.coroutines.launch
-import kotlin.math.max
-import kotlin.math.sqrt
 
 // Data class to hold structured sky analysis data
 data class SkyAnalysisResult(
@@ -82,160 +91,103 @@ data class SkyAnalysisResult(
 @Composable
 fun SkyAnalysisScreen(
     onNavigateBack: () -> Unit,
-    isDarkTheme: Boolean
+    isDarkTheme: Boolean,
+    viewModel: SkyAnalysisViewModel = viewModel()
 ) {
-    // Get API key from BuildConfig
-    val apiKey = BuildConfig.GEMINI_API_KEY
-    
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     
-    // State for the selected image
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    // State to control image source dialog
+    var showImageSourceDialog by remember { mutableStateOf(false) }
     
-    // State for analysis
-    var analysisResult by remember { mutableStateOf<SkyAnalysisResult?>(null) }
-    var isAnalyzing by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    
-    // Function to scale down bitmap to a reasonable size
-    fun scaleBitmap(originalBitmap: Bitmap, maxDimension: Int = 1024): Bitmap {
-        val width = originalBitmap.width
-        val height = originalBitmap.height
-        
-        // If the bitmap is already smaller than maxDimension, return it unchanged
-        if (width <= maxDimension && height <= maxDimension) {
-            return originalBitmap
+    // Create temporary Uri for camera
+    val imageUri = remember {
+        ContentValues().apply {
+            put(MediaStore.Images.Media.TITLE, "Sky Image")
+            put(MediaStore.Images.Media.DESCRIPTION, "Taken from Nimbus app")
+        }.let { contentValues ->
+            context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
         }
-        
-        // Calculate scale factor
-        val scaleFactor = when {
-            width > height -> maxDimension.toFloat() / width
-            else -> maxDimension.toFloat() / height
-        }
-        
-        // Create scaled bitmap
-        return Bitmap.createScaledBitmap(
-            originalBitmap,
-            (width * scaleFactor).toInt(),
-            (height * scaleFactor).toInt(),
-            true
-        )
     }
     
-    // Process uri to bitmap when selectedImageUri changes
-    LaunchedEffect(selectedImageUri) {
-        selectedImageUri?.let {
-            try {
-                val originalBitmap = if (Build.VERSION.SDK_INT < 28) {
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
-                } else {
-                    val source = ImageDecoder.createSource(context.contentResolver, it)
-                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
-                        decoder.isMutableRequired = true
-                        // Set lower allocation limit to prevent OOM
-                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                        // Use RGB_565 to reduce memory usage (loses alpha channel but fine for sky images)
-                        decoder.setTargetSampleSize(2) // Sample 1 in every 2 pixels
-                    }
-                }
-                
-                // Scale down the bitmap to prevent "Canvas: trying to draw too large bitmap" error
-                bitmap = scaleBitmap(originalBitmap)
-                
-                // Recycle the original bitmap if it's different from the scaled one
-                if (originalBitmap != bitmap) {
-                    originalBitmap.recycle()
-                }
-            } catch (e: Exception) {
-                errorMessage = "Error loading image: ${e.message}"
+    // Setup camera capture
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && imageUri != null) {
+            viewModel.processImageUri(imageUri, context)
+        }
+    }
+    
+    // Camera permission state
+    val cameraPermissionState = remember { mutableStateOf(
+        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == 
+            PackageManager.PERMISSION_GRANTED
+    ) }
+    
+    // Request camera permission
+    val requestCameraPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        cameraPermissionState.value = isGranted
+        if (isGranted) {
+            // Only launch the camera if imageUri is not null
+            imageUri?.let { uri ->
+                cameraLauncher.launch(uri)
             }
         }
     }
     
-    // Setup image picker
+    // Setup image picker from gallery
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let {
-            selectedImageUri = it
-            // Reset previous analysis when new image is selected
-            analysisResult = null
-            errorMessage = null
-        }
+        viewModel.processImageUri(uri, context)
     }
     
-    // Function to parse the AI response into a structured format
-    fun parseAiResponse(response: String): SkyAnalysisResult {
-        // Default values for each section
-        var weatherConditions = "No weather conditions identified"
-        var cloudTypes = "No cloud types identified"
-        var forecast = "No forecast available"
-        var phenomena = "No notable atmospheric phenomena"
-        
-        // Simple parsing: split by numbered points (1., 2., 3., 4.)
-        val points = response.split(Regex("\\d+\\."))
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-        
-        // Assign points to the appropriate sections if available
-        if (points.size >= 1) weatherConditions = points[0]
-        if (points.size >= 2) cloudTypes = points[1]
-        if (points.size >= 3) forecast = points[2]
-        if (points.size >= 4) phenomena = points[3]
-        
-        return SkyAnalysisResult(
-            weatherConditions = weatherConditions,
-            cloudTypes = cloudTypes,
-            forecast = forecast,
-            phenomena = phenomena
-        )
-    }
-    
-    // Function to perform AI analysis of sky image
-    val analyzeSkyImage: () -> Unit = {
-        bitmap?.let { image ->
-            isAnalyzing = true
-            errorMessage = null
-            analysisResult = null
-            
-            scope.launch {
-                try {
-                    // Create the Gemini model
-                    val model = GenerativeModel(
-                        modelName = "gemini-2.0-flash",  // Use standard supported model
-                        apiKey = apiKey
+    // Image source selection dialog
+    if (showImageSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceDialog = false },
+            title = { Text("Select Image Source") },
+            text = { Text("Choose where to get the sky image from") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showImageSourceDialog = false
+                        galleryLauncher.launch("image/*")
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
-                    
-                    // Prepare the prompt for sky/weather analysis
-                    val prompt = "Analyze this sky image and provide JUST these 4 numbered points without section headers or any other text:\n" +
-                        "1. Current weather conditions visible\n" +
-                        "2. Description of clouds in simple, everyday language (avoid technical terms like cirrus, stratus, etc.)\n" +
-                        "3. Weather forecast prediction based on sky appearance\n" +
-                        "4. Any interesting atmospheric phenomena visible\n\n" +
-                        "Keep each point brief (10-15 words maximum) and use everyday language that non-experts can understand."
-                    
-                    // Send the image to Gemini for analysis
-                    val response = model.generateContent(
-                        content {
-                            text(prompt)
-                            image(image)
+                    Text("Gallery")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showImageSourceDialog = false
+                        if (cameraPermissionState.value) {
+                            // Only launch the camera if imageUri is not null
+                            imageUri?.let { uri ->
+                                cameraLauncher.launch(uri)
+                            }
+                        } else {
+                            requestCameraPermission.launch(Manifest.permission.CAMERA)
                         }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Camera,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
-                    
-                    // Parse the response into a structured format - safely handle nullable text
-                    val responseText = response.text ?: "No analysis could be generated."
-                    analysisResult = parseAiResponse(responseText)
-                } catch (e: Exception) {
-                    errorMessage = "Analysis failed: ${e.message}"
-                } finally {
-                    isAnalyzing = false
+                    Text("Camera")
                 }
             }
-        } ?: run {
-            errorMessage = "Please select an image first"
-        }
+        )
     }
     
     Scaffold(
@@ -294,17 +246,47 @@ fun SkyAnalysisScreen(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (bitmap != null) {
+                if (viewModel.bitmap != null) {
+                    // Image with clickable modifier to show full screen
                     Image(
-                        bitmap = bitmap!!.asImageBitmap(),
+                        bitmap = viewModel.bitmap!!.asImageBitmap(),
                         contentDescription = "Selected sky image",
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { viewModel.setFullscreenImage(true) },
                         contentScale = ContentScale.Crop
                     )
+                    
+                    // Custom delete button with better proportions and positioning
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp) // More padding to prevent cutting off
+                            .size(28.dp) // Small circle
+                            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { 
+                                viewModel.clearImage() 
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete image",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp) // Proper icon size
+                        )
+                    }
                 } else {
+                    // Make the empty placeholder clickable to open the image source dialog
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { showImageSourceDialog = true }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Image,
@@ -312,8 +294,9 @@ fun SkyAnalysisScreen(
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "No image selected",
+                            text = "Tap to add sky image",
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
@@ -322,28 +305,13 @@ fun SkyAnalysisScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Image selection button
-            Button(
-                onClick = { galleryLauncher.launch("image/*") },
-                modifier = Modifier.fillMaxWidth(0.8f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text(text = "Select Image from Gallery")
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
             // Analyze button
             Button(
-                onClick = analyzeSkyImage,
+                onClick = { viewModel.analyzeSkyImage(context) },
                 modifier = Modifier.fillMaxWidth(0.8f),
-                enabled = bitmap != null && !isAnalyzing
+                enabled = viewModel.bitmap != null && !viewModel.isAnalyzing
             ) {
-                if (isAnalyzing) {
+                if (viewModel.isAnalyzing) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         color = Color.White,
@@ -361,27 +329,8 @@ fun SkyAnalysisScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Analysis results card
-            if (isAnalyzing) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Analyzing sky image...",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            } else if (analysisResult != null) {
+            // Analysis results card - remove the separate loading card
+            if (viewModel.analysisResult != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -399,42 +348,46 @@ fun SkyAnalysisScreen(
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
-                        // Weather conditions section
-                        AnalysisSection(
-                            title = "Current Weather",
-                            content = analysisResult!!.weatherConditions,
-                            icon = Icons.Default.WbSunny
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp))
-                        
-                        // Cloud types section
-                        AnalysisSection(
-                            title = "Cloud Types",
-                            content = analysisResult!!.cloudTypes,
-                            icon = Icons.Default.Cloud
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp))
-                        
-                        // Forecast section
-                        AnalysisSection(
-                            title = "Forecast Prediction",
-                            content = analysisResult!!.forecast,
-                            icon = Icons.Default.Info
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp))
-                        
-                        // Phenomena section
-                        AnalysisSection(
-                            title = "Atmospheric Phenomena",
-                            content = analysisResult!!.phenomena,
-                            icon = Icons.Default.Visibility
-                        )
+                        // Create a local copy of the analysis result to avoid smart cast issues
+                        val analysis = viewModel.analysisResult
+                        if (analysis != null) {
+                            // Weather conditions section
+                            AnalysisSection(
+                                title = "Current Weather",
+                                content = analysis.weatherConditions,
+                                icon = Icons.Default.WbSunny
+                            )
+                            
+                            Divider(modifier = Modifier.padding(vertical = 12.dp))
+                            
+                            // Cloud types section
+                            AnalysisSection(
+                                title = "Cloud Types",
+                                content = analysis.cloudTypes,
+                                icon = Icons.Default.Cloud
+                            )
+                            
+                            Divider(modifier = Modifier.padding(vertical = 12.dp))
+                            
+                            // Forecast section
+                            AnalysisSection(
+                                title = "Forecast Prediction",
+                                content = analysis.forecast,
+                                icon = Icons.Default.Info
+                            )
+                            
+                            Divider(modifier = Modifier.padding(vertical = 12.dp))
+                            
+                            // Phenomena section
+                            AnalysisSection(
+                                title = "Atmospheric Phenomena",
+                                content = analysis.phenomena,
+                                icon = Icons.Default.Visibility
+                            )
+                        }
                     }
                 }
-            } else if (errorMessage != null) {
+            } else if (viewModel.errorMessage != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -455,11 +408,52 @@ fun SkyAnalysisScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = errorMessage!!,
+                            text = viewModel.errorMessage!!,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
+                }
+            }
+        }
+        
+        // Fullscreen image viewer without animation
+        if (viewModel.showFullscreenImage && viewModel.bitmap != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null // Removes the ripple/tap effect
+                    ) { 
+                        viewModel.setFullscreenImage(false) 
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    bitmap = viewModel.bitmap!!.asImageBitmap(),
+                    contentDescription = "Sky image fullscreen view",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentScale = ContentScale.Fit
+                )
+                
+                // Close icon in top-right corner with additional padding to avoid top bar overlap
+                IconButton(
+                    onClick = { viewModel.setFullscreenImage(false) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = paddingValues.calculateTopPadding() + 16.dp, end = 16.dp)
+                        .size(48.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), shape = CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close fullscreen view",
+                        tint = Color.White
+                    )
                 }
             }
         }
