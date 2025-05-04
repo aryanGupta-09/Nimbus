@@ -32,6 +32,9 @@ import com.example.nimbus.data.model.local.SavedLocation
 import com.example.nimbus.data.repository.WeatherRepository
 import com.example.nimbus.data.worker.WorkManagerHelper
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.SaverScope
+import androidx.compose.runtime.saveable.listSaver
 
 class MainActivity : ComponentActivity() {
     
@@ -40,6 +43,27 @@ class MainActivity : ComponentActivity() {
         data object Weather : Screen()
         data object Locations : Screen()
         data object SkyAnalysis : Screen()
+        
+        companion object {
+            // Custom Saver for Screen class
+            val Saver: Saver<Screen, String> = Saver(
+                save = { screen ->
+                    when (screen) {
+                        is Weather -> "Weather"
+                        is Locations -> "Locations" 
+                        is SkyAnalysis -> "SkyAnalysis"
+                    }
+                },
+                restore = { value ->
+                    when (value) {
+                        "Weather" -> Weather
+                        "Locations" -> Locations
+                        "SkyAnalysis" -> SkyAnalysis
+                        else -> Weather // Default fallback
+                    }
+                }
+            )
+        }
     }
     
     // Weather update broadcast receiver
@@ -132,7 +156,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var currentScreen by remember { mutableStateOf<Screen>(Screen.Weather) }
+                    var currentScreen by rememberSaveable(stateSaver = Screen.Saver) { mutableStateOf<Screen>(Screen.Weather) }
                     when (currentScreen) {
                         is Screen.Weather -> {
                             WeatherScreen(
