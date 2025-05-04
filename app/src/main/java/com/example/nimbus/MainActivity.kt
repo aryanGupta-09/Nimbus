@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import com.example.nimbus.data.model.local.SavedLocation
 import com.example.nimbus.data.repository.WeatherRepository
 import com.example.nimbus.data.worker.WorkManagerHelper
+import androidx.compose.runtime.saveable.rememberSaveable
 
 class MainActivity : ComponentActivity() {
     
@@ -123,20 +124,21 @@ class MainActivity : ComponentActivity() {
         WorkManagerHelper.schedulePeriodicWeatherRefresh(this)
         
         setContent {
-            NimbusTheme {
+            var darkTheme by rememberSaveable { mutableStateOf(true) }
+            NimbusTheme(darkTheme = darkTheme, dynamicColor = false) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Setup navigation
                     var currentScreen by remember { mutableStateOf<Screen>(Screen.Weather) }
-                    
                     when (currentScreen) {
                         is Screen.Weather -> {
                             WeatherScreen(
                                 onNavigateToLocations = {
                                     currentScreen = Screen.Locations
-                                }
+                                },
+                                isDarkTheme = darkTheme,
+                                onToggleTheme = { darkTheme = !darkTheme }
                             )
                         }
                         is Screen.Locations -> {

@@ -341,7 +341,7 @@ fun AstroInfoCard(astro: Astro) {
             }
             
             Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.surface)
             Spacer(modifier = Modifier.height(16.dp))
             
             // Moon info
@@ -603,7 +603,7 @@ fun ForecastSection(
                 if (day != forecastDays.take(3).last()) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 12.dp),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                        color = MaterialTheme.colorScheme.surface
                     )
                 }
             }

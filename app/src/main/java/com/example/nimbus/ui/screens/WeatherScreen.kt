@@ -39,11 +39,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.IconButton
+import coil.compose.AsyncImage
+import androidx.compose.foundation.layout.size
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherScreen(
-    onNavigateToLocations: () -> Unit = {}
+    onNavigateToLocations: () -> Unit = {},
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     // State to track temperature unit
     var isCelsius by rememberSaveable { mutableStateOf(true) }
@@ -94,8 +99,19 @@ fun WeatherScreen(
         // Transparent top bar with unit switch
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onToggleTheme) {
+                        AsyncImage(
+                            model = if (isDarkTheme) "https://cdn-icons-png.flaticon.com/512/8867/8867534.png" else "https://cdn-icons-png.flaticon.com/512/8812/8812116.png",
+                            contentDescription = if (isDarkTheme) "Switch to light mode" else "Switch to dark mode",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
                 title = {},
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF343539)),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (!isDarkTheme) Color(0xFFE6E1E8) else MaterialTheme.colorScheme.surface
+                ),
                 actions = {
                     Text(text = if (isCelsius) "°C" else "°F", modifier = Modifier.padding(end = 8.dp))
                     Switch(

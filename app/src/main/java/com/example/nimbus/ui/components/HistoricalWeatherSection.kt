@@ -77,7 +77,7 @@ fun HistoricalWeatherSection(
                         if (weatherData != historicalData.take(7).last()) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 12.dp),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                                color = MaterialTheme.colorScheme.surface
                             )
                         }
                     }
