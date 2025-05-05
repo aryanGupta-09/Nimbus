@@ -209,10 +209,11 @@ fun CurrentWeatherHeader(
                     comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
                 }
                 condText.contains("mist", ignoreCase = true) -> {
-                    // Mist animation: day vs night
+                    // Mist animation: day vs night based on sunrise and sunset times
                     val dayMistUrl = "https://lottie.host/310ae1aa-03ff-4e88-9dd8-76c6fdc6a96d/5Zosi3mtEw.lottie"
                     val nightMistUrl = "https://lottie.host/bf10ee8d-182b-4e2a-a308-1030655c0238/ITiX7Ns5ca.lottie"
-                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayMistUrl else nightMistUrl
+                    val isDaytime = !now.isBefore(sunriseTime) && !now.isAfter(sunsetTime)
+                    val url = if (isDaytime) dayMistUrl else nightMistUrl
                     val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
                     comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
                 }
@@ -328,10 +329,11 @@ fun CurrentWeatherHeaderWithFullLocation(
                     comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
                 }
                 condText.contains("mist", ignoreCase = true) -> {
-                    // Mist animation: day vs night
+                    // Mist animation: day vs night based on sunrise and sunset times
                     val dayMistUrl = "https://lottie.host/310ae1aa-03ff-4e88-9dd8-76c6fdc6a96d/5Zosi3mtEw.lottie"
                     val nightMistUrl = "https://lottie.host/bf10ee8d-182b-4e2a-a308-1030655c0238/ITiX7Ns5ca.lottie"
-                    val url = if (now.isAfter(sunriseTime) && now.isBefore(sunsetTime)) dayMistUrl else nightMistUrl
+                    val isDaytime = !now.isBefore(sunriseTime) && !now.isAfter(sunsetTime)
+                    val url = if (isDaytime) dayMistUrl else nightMistUrl
                     val comp = rememberLottieComposition(LottieCompositionSpec.Url(url)).value
                     comp?.let { LottieAnimation(it, iterations = LottieConstants.IterateForever, isPlaying = true, modifier = Modifier.size(96.dp)) }
                 }
