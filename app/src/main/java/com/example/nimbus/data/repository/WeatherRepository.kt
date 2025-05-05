@@ -5,6 +5,7 @@ import android.content.Context
 import android.location.Location
 import android.util.Log
 import com.example.nimbus.data.api.NetworkModule
+import com.example.nimbus.data.database.CurrentWeatherEntity
 import com.example.nimbus.data.database.HistoricalWeatherEntity
 import com.example.nimbus.data.database.WeatherDatabase
 import com.example.nimbus.data.location.LocationManager
@@ -47,6 +48,7 @@ class WeatherRepository(private val context: Context) {
     // Initialize Room database
     private val database = WeatherDatabase.getDatabase(context)
     private val historicalWeatherDao = database.historicalWeatherDao()
+    private val currentWeatherDao = database.currentWeatherDao()
     
     // Get saved locations
     val savedLocations = locationManager.savedLocations
@@ -62,7 +64,8 @@ class WeatherRepository(private val context: Context) {
     private val _backgroundRefreshEvent = MutableStateFlow(0L)
     val backgroundRefreshEvent: StateFlow<Long> = _backgroundRefreshEvent
     
-    // Session-based cache for weather data
+    // Session-based cache for weather data - keeping this for quick in-memory access
+    // but now backed by persistent database storage
     private val sessionCache = mutableMapOf<String, CachedWeatherData>()
     
     // Information about offline data
@@ -118,29 +121,53 @@ class WeatherRepository(private val context: Context) {
             // Check network availability
             if (!NetworkUtils.isNetworkAvailable(context)) {
                 Log.d("WeatherRepository", "Network unavailable, using cached data")
-                // Return cached data if available
-                val cachedData = sessionCache[query]
-                if (cachedData != null) {
+                
+                // First check in-memory cache for faster access
+                val inMemoryCachedData = sessionCache[query]
+                if (inMemoryCachedData != null) {
                     _offlineDataInfo.value = OfflineDataInfo(
-                        locationName = cachedData.weatherData.location.name,
-                        timestamp = cachedData.timestamp
+                        locationName = inMemoryCachedData.weatherData.location.name,
+                        timestamp = inMemoryCachedData.timestamp
                     )
-                    return Result.success(cachedData.weatherData)
-                } else {
-                    return Result.failure(IOException("No internet connection and no cached data available"))
+                    return Result.success(inMemoryCachedData.weatherData)
                 }
+                
+                // If not in memory, try to get from database
+                val dbCachedData = loadCurrentWeatherFromDatabase(query)
+                if (dbCachedData != null) {
+                    // Update in-memory cache with data from database
+                    sessionCache[query] = CachedWeatherData(
+                        locationQuery = query,
+                        weatherData = dbCachedData.weatherData,
+                        timestamp = dbCachedData.timestamp,
+                        fromCache = true
+                    )
+                    
+                    _offlineDataInfo.value = OfflineDataInfo(
+                        locationName = dbCachedData.locationName,
+                        timestamp = dbCachedData.timestamp
+                    )
+                    
+                    return Result.success(dbCachedData.weatherData)
+                }
+                
+                return Result.failure(IOException("No internet connection and no cached data available"))
             }
             
             // If network is available, fetch fresh data
             val response = weatherApiService.getWeatherForecast(query = query)
             
-            // Cache the response
+            // Cache the response in memory for fast access
+            val timestamp = System.currentTimeMillis()
             sessionCache[query] = CachedWeatherData(
                 locationQuery = query,
                 weatherData = response,
-                timestamp = System.currentTimeMillis(),
+                timestamp = timestamp,
                 fromCache = false
             )
+            
+            // Save to database for persistent storage
+            saveCurrentWeatherToDatabase(query, response)
             
             return Result.success(response)
         } catch (e: Exception) {
@@ -159,13 +186,33 @@ class WeatherRepository(private val context: Context) {
                     savedLocation?.query ?: "current_location"
                 }
                 
-                val cachedData = sessionCache[query]
-                if (cachedData != null) {
+                // First check in-memory cache
+                val inMemoryCachedData = sessionCache[query]
+                if (inMemoryCachedData != null) {
                     _offlineDataInfo.value = OfflineDataInfo(
-                        locationName = cachedData.weatherData.location.name,
-                        timestamp = cachedData.timestamp
+                        locationName = inMemoryCachedData.weatherData.location.name,
+                        timestamp = inMemoryCachedData.timestamp
                     )
-                    return Result.success(cachedData.weatherData)
+                    return Result.success(inMemoryCachedData.weatherData)
+                }
+                
+                // If not in memory, try to get from database
+                val dbCachedData = loadCurrentWeatherFromDatabase(query)
+                if (dbCachedData != null) {
+                    // Update in-memory cache with data from database
+                    sessionCache[query] = CachedWeatherData(
+                        locationQuery = query,
+                        weatherData = dbCachedData.weatherData,
+                        timestamp = dbCachedData.timestamp,
+                        fromCache = true
+                    )
+                    
+                    _offlineDataInfo.value = OfflineDataInfo(
+                        locationName = dbCachedData.locationName,
+                        timestamp = dbCachedData.timestamp
+                    )
+                    
+                    return Result.success(dbCachedData.weatherData)
                 }
             }
             
@@ -406,19 +453,23 @@ class WeatherRepository(private val context: Context) {
             // Fetch weather data for the new GPS coordinates
             val response = weatherApiService.getWeatherForecast(query = currentLocationString)
             
-            // Cache the response
+            // Cache the response in memory
+            val timestamp = System.currentTimeMillis()
             sessionCache[currentLocationString] = CachedWeatherData(
                 locationQuery = currentLocationString,
                 weatherData = response,
-                timestamp = System.currentTimeMillis(),
+                timestamp = timestamp,
                 fromCache = false
             )
+            
+            // Save to database for persistent storage
+            saveCurrentWeatherToDatabase(currentLocationString, response)
             
             // If successful, reschedule the work to maintain the proper refresh schedule
             WorkManagerHelper.schedulePeriodicWeatherRefresh(context)
             
             // Emit event to notify UI components about the background refresh
-            _backgroundRefreshEvent.emit(System.currentTimeMillis())
+            _backgroundRefreshEvent.emit(timestamp)
             
             Result.success(response)
         } catch (e: Exception) {
@@ -478,6 +529,50 @@ class WeatherRepository(private val context: Context) {
             cont.invokeOnCancellation {
                 cancellationToken.cancel()
             }
+        }
+    }
+    
+    /**
+     * Helper method to save current weather data to the database
+     */
+    private suspend fun saveCurrentWeatherToDatabase(query: String, response: WeatherResponse) {
+        try {
+            // Check if table exists first to avoid errors on first run
+            if (currentWeatherDao.doesTableExist()) {
+                // Save to the database for persistent storage
+                currentWeatherDao.insertCurrentWeather(
+                    CurrentWeatherEntity(
+                        locationQuery = query,
+                        locationName = response.location.name,
+                        weatherData = response,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+                Log.d("WeatherRepository", "Saved current weather for ${response.location.name} to database")
+            }
+        } catch (e: Exception) {
+            Log.e("WeatherRepository", "Error saving current weather to database", e)
+            // Continue execution even if database save fails
+        }
+    }
+    
+    /**
+     * Helper method to load current weather from database
+     */
+    private suspend fun loadCurrentWeatherFromDatabase(query: String): CurrentWeatherEntity? {
+        return try {
+            if (currentWeatherDao.doesTableExist()) {
+                val cachedData = currentWeatherDao.getCurrentWeatherByLocation(query)
+                if (cachedData != null) {
+                    Log.d("WeatherRepository", "Loaded current weather for ${cachedData.locationName} from database")
+                }
+                cachedData
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("WeatherRepository", "Error loading current weather from database", e)
+            null
         }
     }
 }
