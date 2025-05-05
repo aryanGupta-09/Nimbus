@@ -90,17 +90,11 @@ fun WeatherScreen(
     val savedLocations by repository.savedLocations.collectAsState(initial = emptyList())
     val selectedLocation = savedLocations.find { it.id == selectedLocationId }
     
-    // Create a full location display string that includes the country
-    val fullLocationDisplay = when {
-        selectedLocation != null -> {
-            if (weatherState is WeatherScreenState.Success) {
-                // When we have weather data, use the country from the API response
-                val weatherData = (weatherState as WeatherScreenState.Success).data
-                "${selectedLocation.name}, ${weatherData.location.country}"
-            } else {
-                // If we don't have weather data yet, just show the name
-                selectedLocation.name
-            }
+    // Create a full location display string using API fields (name, region, country)
+    val fullLocationDisplay = when (val state = weatherState) {
+        is WeatherScreenState.Success -> {
+            val loc = state.data.location
+            "${loc.name}, ${loc.region}, ${loc.country}"
         }
         else -> null
     }
