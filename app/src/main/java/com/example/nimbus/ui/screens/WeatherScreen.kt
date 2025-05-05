@@ -39,6 +39,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.IconButton
 import coil.compose.AsyncImage
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -49,6 +51,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
+import com.example.nimbus.R
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -112,9 +115,17 @@ fun WeatherScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = onToggleTheme) {
-                        AsyncImage(
-                            model = if (isDarkTheme) "https://cdn-icons-png.flaticon.com/512/8867/8867534.png" else "https://cdn-icons-png.flaticon.com/512/8812/8812116.png",
+                    Button(
+                        onClick = onToggleTheme,
+                        modifier = Modifier.size(40.dp),
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (!isDarkTheme) Color(0xFFD0C5E5) else Color(0xFF525254)
+                        )
+                    ) {
+                        Image(
+                            painter = painterResource(id = if (isDarkTheme) R.drawable.darkness_icon else R.drawable.brightness_icon),
                             contentDescription = if (isDarkTheme) "Switch to light mode" else "Switch to dark mode",
                             modifier = Modifier.size(24.dp)
                         )
