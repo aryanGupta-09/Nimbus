@@ -38,6 +38,7 @@ import com.example.nimbus.data.model.Astro
 import com.example.nimbus.data.model.Current
 import com.example.nimbus.data.model.ForecastDay
 import com.example.nimbus.data.model.WeatherResponse
+import com.example.nimbus.data.model.local.DeviceSensorData
 import com.example.nimbus.ui.screens.HistoricalWeatherState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -55,7 +56,12 @@ fun WeatherContent(
     fullLocationDisplay: String? = null,
     historicalWeatherState: HistoricalWeatherState = HistoricalWeatherState.Loading,
     onRetryHistorical: () -> Unit = {},
-    isCelsius: Boolean
+    isCelsius: Boolean,
+    devicePressure: Float? = null,
+    hasBarometer: Boolean = false,
+    sensorData: DeviceSensorData = DeviceSensorData(),
+    hasSensors: Boolean = false,
+    isCurrentLocation: Boolean = false
 ) {
     val scrollState = rememberScrollState()
     
@@ -105,8 +111,14 @@ fun WeatherContent(
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 // Weather details cards
-                WeatherDetailsSection(weatherData)
+                WeatherDetailsSection(weatherData, devicePressure, hasBarometer)
                 
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+            
+            // Device Sensors Card - placed just above forecast section
+            if (hasSensors && isCurrentLocation) {
+                DeviceSensorsCard(sensorData = sensorData, hasSensors = hasSensors)
                 Spacer(modifier = Modifier.height(24.dp))
             }
             
@@ -389,7 +401,11 @@ fun CurrentWeatherHeaderWithFullLocation(
 }
 
 @Composable
-fun WeatherDetailsSection(weatherData: WeatherResponse) {
+fun WeatherDetailsSection(
+    weatherData: WeatherResponse,
+    devicePressure: Float? = null,
+    hasBarometer: Boolean = false
+) {
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -399,6 +415,8 @@ fun WeatherDetailsSection(weatherData: WeatherResponse) {
         // Only show current weather details if current data is available
         if (weatherData.current != null) {
             Spacer(modifier = Modifier.height(16.dp))
+            
+            // Removed BarometerCard as requested
             
             // Air Quality
             AirQualityCard(weatherData.current.airQuality)

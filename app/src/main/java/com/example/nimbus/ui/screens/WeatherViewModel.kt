@@ -19,17 +19,28 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import com.example.nimbus.data.model.local.DeviceSensorData
+import com.example.nimbus.data.sensor.DeviceSensorManager
 import com.example.nimbus.data.worker.BackgroundRefreshManager
 
 class WeatherViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = WeatherRepository(application)
     private val context = application
+    private val sensorManager = DeviceSensorManager(application)
 
     private val _weatherState = MutableStateFlow<WeatherScreenState>(WeatherScreenState.Loading)
     val weatherState: StateFlow<WeatherScreenState> = _weatherState
     
     private val _historicalWeatherState = MutableStateFlow<HistoricalWeatherState>(HistoricalWeatherState.Loading)
     val historicalWeatherState: StateFlow<HistoricalWeatherState> = _historicalWeatherState
+
+    // Add a state for sensor readings
+    private val _sensorData = MutableStateFlow(DeviceSensorData())
+    val sensorData: StateFlow<DeviceSensorData> = _sensorData
+    
+    // Add state for sensor availability
+    private val _hasSensors = MutableStateFlow(false)
+    val hasSensors: StateFlow<Boolean> = _hasSensors
 
     // Broadcast receiver for internal weather refresh events
     private val weatherUpdateReceiver = object : BroadcastReceiver() {
@@ -88,6 +99,52 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             context.registerReceiver(weatherUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } catch (e: Exception) {
             Log.e("WeatherViewModel", "Error registering receiver", e)
+        }
+        
+        // Check if device has any environmental sensors
+        _hasSensors.value = sensorManager.hasEnvSensors()
+        
+        // If any sensor exists, start collecting readings
+        if (_hasSensors.value) {
+            // Collect barometer readings if available
+            if (sensorManager.hasBarometer()) {
+                sensorManager.getPressureReadings()
+                    .onEach { pressure ->
+                        _sensorData.value = _sensorData.value.copy(pressure = pressure)
+                        Log.d("WeatherViewModel", "Updated barometer reading: $pressure hPa")
+                    }
+                    .launchIn(viewModelScope)
+            }
+            
+            // Collect humidity readings if available
+            if (sensorManager.hasHumiditySensor()) {
+                sensorManager.getHumidityReadings()
+                    .onEach { humidity ->
+                        _sensorData.value = _sensorData.value.copy(humidity = humidity)
+                        Log.d("WeatherViewModel", "Updated humidity reading: $humidity %")
+                    }
+                    .launchIn(viewModelScope)
+            }
+            
+            // Collect temperature readings if available
+            if (sensorManager.hasTemperatureSensor()) {
+                sensorManager.getTemperatureReadings()
+                    .onEach { temperature ->
+                        _sensorData.value = _sensorData.value.copy(temperature = temperature)
+                        Log.d("WeatherViewModel", "Updated temperature reading: $temperature °C")
+                    }
+                    .launchIn(viewModelScope)
+            }
+            
+            // Collect light sensor readings if available
+            if (sensorManager.hasLightSensor()) {
+                sensorManager.getLightReadings()
+                    .onEach { light ->
+                        _sensorData.value = _sensorData.value.copy(light = light)
+                        Log.d("WeatherViewModel", "Updated light reading: $light lux")
+                    }
+                    .launchIn(viewModelScope)
+            }
         }
     }
 

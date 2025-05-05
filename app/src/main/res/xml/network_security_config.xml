@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Base config -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <!-- Trust preinstalled system certificates -->
+            <certificates src="system" />
+            <!-- Additionally trust user added certificates -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Domain specific config -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Trust all domains used by the app -->
+        <domain includeSubdomains="true">api.weatherapi.com</domain>
+        <domain includeSubdomains="true">cdn.weatherapi.com</domain>
+        
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -70,6 +70,10 @@ fun WeatherScreen(
     // Observe offline data info
     val offlineInfo by viewModel.offlineDataInfo.collectAsState()
     
+    // Observe device sensor data
+    val sensorData by viewModel.sensorData.collectAsState()
+    val hasSensors by viewModel.hasSensors.collectAsState()
+    
     val pullRefreshState = rememberPullRefreshState(
         refreshing = weatherState is WeatherScreenState.Loading,
         onRefresh = { 
@@ -189,7 +193,12 @@ fun WeatherScreen(
                             fullLocationDisplay = fullLocationDisplay,
                             historicalWeatherState = historicalWeatherState,
                             onRetryHistorical = { viewModel.fetchHistoricalWeather() },
-                            isCelsius = isCelsius
+                            isCelsius = isCelsius,
+                            devicePressure = sensorData.pressure,
+                            hasBarometer = hasSensors && sensorData.pressure != null,
+                            sensorData = sensorData,
+                            hasSensors = hasSensors,
+                            isCurrentLocation = selectedLocation?.isCurrent ?: false
                         )
                         PullRefreshIndicator(
                             refreshing = weatherState is WeatherScreenState.Loading,
