@@ -33,26 +33,20 @@ class DeviceSensorManager(private val context: Context) {
         sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE)
     }
     
-    private val lightSensor: Sensor? by lazy {
-        sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
-    }
-
     // Check for available sensors
     fun hasBarometer(): Boolean = pressureSensor != null
     fun hasHumiditySensor(): Boolean = humiditySensor != null
     fun hasTemperatureSensor(): Boolean = temperatureSensor != null
-    fun hasLightSensor(): Boolean = lightSensor != null
     
     // Check if the device has any environmental sensors available
     fun hasEnvSensors(): Boolean {
-        return hasBarometer() || hasHumiditySensor() || hasTemperatureSensor() || hasLightSensor()
+        return hasBarometer() || hasHumiditySensor() || hasTemperatureSensor()
     }
 
     // Sensor data flow functions
     fun getPressureReadings(): Flow<Float> = getSensorReadings(pressureSensor, Sensor.TYPE_PRESSURE)
     fun getHumidityReadings(): Flow<Float> = getSensorReadings(humiditySensor, Sensor.TYPE_RELATIVE_HUMIDITY)
     fun getTemperatureReadings(): Flow<Float> = getSensorReadings(temperatureSensor, Sensor.TYPE_AMBIENT_TEMPERATURE)
-    fun getLightReadings(): Flow<Float> = getSensorReadings(lightSensor, Sensor.TYPE_LIGHT)
     
     // Generic function to get readings from any sensor
     private fun getSensorReadings(sensor: Sensor?, sensorType: Int): Flow<Float> = callbackFlow {

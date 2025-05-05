@@ -6,6 +6,5 @@ package com.example.nimbus.data.model.local
 data class DeviceSensorData(
     val pressure: Float? = null,
     val humidity: Float? = null,
-    val temperature: Float? = null,
-    val light: Float? = null
+    val temperature: Float? = null
 )

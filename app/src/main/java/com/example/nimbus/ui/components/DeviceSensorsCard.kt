@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeviceHub
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Opacity
-import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -38,10 +37,9 @@ fun DeviceSensorsCard(
     val hasPressureReading = sensorData.pressure != null
     val hasHumidityReading = sensorData.humidity != null
     val hasTemperatureReading = sensorData.temperature != null
-    val hasLightReading = sensorData.light != null
     
     // Only display card if we have at least one reading
-    if (!hasPressureReading && !hasHumidityReading && !hasTemperatureReading && !hasLightReading) {
+    if (!hasPressureReading && !hasHumidityReading && !hasTemperatureReading) {
         return
     }
     
@@ -84,11 +82,11 @@ fun DeviceSensorsCard(
                 }
             }
             
-            // Only add spacing if we have a second row
-            if (hasTemperatureReading || hasLightReading) {
+            // Only add spacing if we have temperature reading
+            if (hasTemperatureReading) {
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Second row of sensors
+                // Second row for temperature sensor
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -99,15 +97,6 @@ fun DeviceSensorsCard(
                             icon = Icons.Default.Thermostat,
                             label = "Temperature",
                             value = "${sensorData.temperature!!.toInt()}°C"
-                        )
-                    }
-                    
-                    // Show light reading if available
-                    if (hasLightReading) {
-                        SensorReadingItem(
-                            icon = Icons.Default.WbSunny,
-                            label = "Light",
-                            value = "${sensorData.light!!.toInt()} lux"
                         )
                     }
                 }

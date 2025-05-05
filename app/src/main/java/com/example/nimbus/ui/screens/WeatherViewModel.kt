@@ -135,16 +135,6 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                     }
                     .launchIn(viewModelScope)
             }
-            
-            // Collect light sensor readings if available
-            if (sensorManager.hasLightSensor()) {
-                sensorManager.getLightReadings()
-                    .onEach { light ->
-                        _sensorData.value = _sensorData.value.copy(light = light)
-                        Log.d("WeatherViewModel", "Updated light reading: $light lux")
-                    }
-                    .launchIn(viewModelScope)
-            }
         }
     }
 
