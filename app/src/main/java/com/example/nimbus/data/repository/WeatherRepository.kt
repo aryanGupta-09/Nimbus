@@ -515,14 +515,14 @@ class WeatherRepository(private val context: Context) {
                         cont.resume(locationString)
                     } else {
                         // If location is null, use a default location
-                        cont.resume("London")
+                        cont.resume("Delhi, India")
                     }
                 }
                 .addOnFailureListener { e ->
                     if (cont.isActive) {
                         // Provide a default location on failure
                         Log.e("WeatherRepository", "Error getting location", e)
-                        cont.resume("London")
+                        cont.resume("Delhi, India")
                     }
                 }
                 

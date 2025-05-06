@@ -194,8 +194,8 @@ fun WeatherScreen(
                     ) {
                         WeatherContent(
                             weatherData = state.data,
-                            locationName = selectedLocation?.name,
-                            fullLocationDisplay = fullLocationDisplay,
+                            locationName = if (selectedLocation?.isCurrent == true) "Current location" else selectedLocation?.name,
+                            fullLocationDisplay = if (selectedLocation?.isCurrent == true) "Current location" else fullLocationDisplay,
                             historicalWeatherState = historicalWeatherState,
                             onRetryHistorical = { viewModel.fetchHistoricalWeather() },
                             isCelsius = isCelsius,
