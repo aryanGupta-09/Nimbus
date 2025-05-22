@@ -4,16 +4,17 @@
 
 ## Overview
 
-Nimbus is a comprehensive weather application for Android that provides accurate, real-time weather data with a beautiful, intuitive UI built with Jetpack Compose. The app offers detailed weather forecasts, location tracking, sky analysis, and sensor integration for a complete weather experience.
+Nimbus is a feature-rich weather application that delivers accurate forecasts with a modern, intuitive interface. It combines traditional weather data with advanced AI-powered sky analysis, multiple location tracking, device sensor integration, and customizable UI options to provide a complete and personalized weather experience.
 
 ## Features
 
 ### 🌤️ Weather Dashboard
 - Current weather conditions with detailed metrics
-- Hourly and daily forecasts
+- Hourly and daily forecasts (up to 7 days)
 - Feels-like temperature, humidity, wind, and pressure data
-- Air quality information
+- Air quality information with pollutant details (PM2.5, PM10, CO, NO2, SO2, O3)
 - UV index and visibility metrics
+- Historical weather data comparison
 
 ### 📍 Location Management
 - Automatic detection of current location
@@ -24,6 +25,8 @@ Nimbus is a comprehensive weather application for Android that provides accurate
 - Camera integration for sky photos
 - AI-powered cloud pattern recognition using Google's Gemini AI
 - Weather prediction based on visual analysis
+- Cloud type identification and atmospheric phenomena detection
+- Gallery integration to analyze existing photos
 
 ### 📱 Device Sensors
 - Barometric pressure readings from device sensors
@@ -40,6 +43,8 @@ Nimbus is a comprehensive weather application for Android that provides accurate
 - Dark and light theme support
 - Responsive and intuitive interface
 - Beautiful weather animations and icons
+- Pull-to-refresh for instant weather updates
+- Temperature unit switching (°C/°F)
 
 ## Technical Details
 
@@ -66,6 +71,7 @@ Nimbus is a comprehensive weather application for Android that provides accurate
 - Android Studio Arctic Fox (2021.3.1) or newer
 - Min SDK 24 (Android 7.0)
 - Target SDK 35
+- Kotlin 1.8.10 or newer
 
 ### Setup
 1. Clone the repository:
@@ -94,6 +100,13 @@ Nimbus requires the following permissions:
 - **Storage**: For saving sky photos
 - **Network State**: For checking connectivity
 
+## Troubleshooting
+
+- **Location not updating?** Check that location permissions are granted and GPS is enabled
+- **Sky analysis not working?** Verify your Gemini API key is correctly set in `apikey.properties`
+- **Missing sensor data?** Not all devices have barometric pressure or humidity sensors
+- **Weather not refreshing?** Check network connectivity and background refresh settings
+
 ## Acknowledgments
 
 - Weather data provided by [WeatherAPI](https://www.weatherapi.com/)
@@ -102,4 +115,4 @@ Nimbus requires the following permissions:
 
 ---
 
-*Nimbus - Weather at your fingertips*
+*Nimbus - Weather at your fingertips: Accurate, Beautiful, Intelligent*
